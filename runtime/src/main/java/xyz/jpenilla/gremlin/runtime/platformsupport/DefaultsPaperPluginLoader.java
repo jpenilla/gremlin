@@ -8,11 +8,13 @@ import xyz.jpenilla.gremlin.runtime.DependencySet;
 
 /**
  * Paper {@link PluginLoader} that automatically loads dependencies using
- * {@link DependencySet#readDefault(ClassLoader)} and adds them to
- * the plugin classpath.
+ * {@link DependencySet#readDefault(ClassLoader)}, resolves them to
+ * {@code plugins/<plugin_name>/libraries/} using {@link DependencyDownloader},
+ * and then adds them to the plugin classpath.
  *
- * <p>This is provided as a convenience for the common case, if custom behavior
- * is required you will need to implement {@link PluginLoader} yourself.</p>
+ * <p>This is provided as a convenience for the common case, and isn't meant to
+ * be flexible. If custom behavior is required, a custom {@link PluginLoader}
+ * should be implemented.</p>
  */
 @NullMarked
 public final class DefaultsPaperPluginLoader implements PluginLoader {
