@@ -10,6 +10,7 @@ import xyz.jpenilla.gremlin.runtime.util.Util;
 @NullMarked
 public final class FabricClasspathAppender implements ClasspathAppender {
     @Override
+    @SuppressWarnings("deprecation")
     public void append(final Path path) {
         try {
             FabricLauncherBase.getLauncher().propose(path.toUri().toURL());
