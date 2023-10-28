@@ -1,0 +1,7 @@
+[plugins]
+indra = { id = "net.kyori.indra", version.ref = "indra" }
+indraPublishing = { id = "net.kyori.indra.publishing", version.ref = "indra" }
+indraGradlePublishing = { id = "net.kyori.indra.publishing.gradle-plugin", version.ref = "indra" }
+
+[versions]
+indra = "3.1.3"
