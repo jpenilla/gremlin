@@ -3,6 +3,9 @@ package xyz.jpenilla.gremlin.gradle
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
+import org.gradle.api.attributes.Bundling
+import org.gradle.api.attributes.Category
+import org.gradle.api.attributes.LibraryElements
 import org.gradle.api.attributes.Usage
 import org.gradle.api.initialization.Settings
 import org.gradle.api.internal.GradleInternal
@@ -22,6 +25,9 @@ class GremlinPlugin : Plugin<Project> {
             isCanBeResolved = true
             isCanBeConsumed = false
             attributes {
+                attribute(Category.CATEGORY_ATTRIBUTE, target.objects.named(Category.LIBRARY))
+                attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, target.objects.named(LibraryElements.JAR))
+                attribute(Bundling.BUNDLING_ATTRIBUTE, target.objects.named(Bundling.EXTERNAL))
                 attribute(Usage.USAGE_ATTRIBUTE, target.objects.named(Usage.JAVA_RUNTIME))
             }
         }
@@ -30,6 +36,9 @@ class GremlinPlugin : Plugin<Project> {
             isCanBeResolved = true
             isCanBeConsumed = false
             attributes {
+                attribute(Category.CATEGORY_ATTRIBUTE, target.objects.named(Category.LIBRARY))
+                attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, target.objects.named(LibraryElements.JAR))
+                attribute(Bundling.BUNDLING_ATTRIBUTE, target.objects.named(Bundling.EXTERNAL))
                 attribute(Usage.USAGE_ATTRIBUTE, target.objects.named(Usage.JAVA_RUNTIME))
             }
         }

@@ -20,6 +20,7 @@ public final class RelocationExtension implements Extension<RelocationExtension.
                     coords[0],
                     coords[1],
                     coords[2],
+                    coords.length == 4 ? coords[3] : null,
                     split[2]
                 ));
             } else {

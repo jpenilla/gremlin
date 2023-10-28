@@ -109,6 +109,7 @@ public record DependencySet(
                             coords[0],
                             coords[1],
                             coords[2],
+                            coords.length == 4 ? coords[3] : null,
                             split[1]
                         ));
                     }

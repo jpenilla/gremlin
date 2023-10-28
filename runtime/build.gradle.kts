@@ -9,8 +9,8 @@ repositories {
 
 dependencies {
     compileOnly("me.lucko:jar-relocator:1.7")
-    compileOnly("org.slf4j:slf4j-api:2.0.9")
-    compileOnly("org.jspecify:jspecify:0.3.0")
+    compileOnlyApi("org.slf4j:slf4j-api:2.0.9")
+    compileOnlyApi("org.jspecify:jspecify:0.3.0")
 
     compileOnly("io.papermc.paper:paper-api:1.20.2-R0.1-SNAPSHOT")
     compileOnly("net.fabricmc:fabric-loader:0.14.22")

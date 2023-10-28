@@ -70,7 +70,7 @@ abstract class WriteDependencies : DefaultTask() {
 
         out.sectionHeader("deps")
         for (dependency in deps(tree.get())) {
-            out.append(dependencyLine(dependency))
+            out.append(dependencyLines(dependency))
         }
         out.sectionEnd()
 
@@ -78,7 +78,7 @@ abstract class WriteDependencies : DefaultTask() {
             out.sectionHeader("relocation")
 
             for (dependency in deps(relocTree.get())) {
-                out.append("dep ").append(dependencyLine(dependency))
+                out.append("dep ").append(dependencyLines(dependency))
             }
 
             for (r in relocations.get().sorted()) {
@@ -97,10 +97,20 @@ abstract class WriteDependencies : DefaultTask() {
     open fun touchOutput(out: StringBuilder) {
     }
 
-    protected fun dependencyLine(dependency: ResolvedDependencyResult): String {
+    protected fun dependencyLines(dependency: ResolvedDependencyResult): String {
         val id = dependency.resolvedVariant.owner as ModuleComponentIdentifier
-        val file = files.files.single { it.name.equals("${id.module}-${id.version}.jar") }
-        return "${id.displayName} ${file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()}\n"
+        val files = files.files.filter { it.name.startsWith("${id.module}-${id.version}") && it.name.endsWith(".jar") }
+        val s = StringBuilder()
+        for (file in files) {
+            val classifier = file.name.substringAfter("${id.module}-${id.version}").substringBefore(".jar")
+            val notation = if (classifier.isNotBlank()) {
+                id.displayName + ':' + classifier.substring(1)
+            } else {
+                id.displayName
+            }
+            s.append("$notation ${file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()}\n")
+        }
+        return s.toString()
     }
 
     protected fun StringBuilder.sectionHeader(name: String) {

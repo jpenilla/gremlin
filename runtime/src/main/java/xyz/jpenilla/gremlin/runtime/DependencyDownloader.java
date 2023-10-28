@@ -224,12 +224,13 @@ public final class DependencyDownloader {
     private Path resolve(final Dependency dependency, final List<String> repositories, final Runnable attemptingDownloadCallback) throws IOException {
         @Nullable Path resolved = null;
         final Path outputFile = this.cacheDir.resolve(String.format(
-            "%s/%s/%s/%s-%s.jar",
+            "%s/%s/%s/%s-%s%s.jar",
             dependency.group().replace('.', '/'),
             dependency.name(),
             dependency.version(),
             dependency.name(),
-            dependency.version()
+            dependency.version(),
+            dependency.classifier() == null ? "" : '-' + dependency.classifier()
         ));
         if (Files.exists(outputFile)) {
             if (checkHash(dependency, outputFile)) {
@@ -241,13 +242,14 @@ public final class DependencyDownloader {
         attemptingDownloadCallback.run();
         for (final String repository : repositories) {
             final String urlString = String.format(
-                "%s%s/%s/%s/%s-%s.jar",
+                "%s%s/%s/%s/%s-%s%s.jar",
                 repository,
                 dependency.group().replace('.', '/'),
                 dependency.name(),
                 dependency.version(),
                 dependency.name(),
-                dependency.version()
+                dependency.version(),
+                dependency.classifier() == null ? "" : '-' + dependency.classifier()
             );
 
             final HttpRequest request;
