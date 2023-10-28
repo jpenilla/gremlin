@@ -295,7 +295,6 @@ public final class DependencyDownloader {
             }
             //this.logger.info("Download " + urlString + " success");
             resolved = response.body();
-            writeLastUsed(resolved);
             break;
         }
         if (resolved == null) {
@@ -304,6 +303,7 @@ public final class DependencyDownloader {
         if (!checkHash(dependency, resolved)) {
             throw new IllegalStateException("Hash for downloaded file %s was incorrect (expected: %s, got: %s)".formatted(resolved, dependency.sha256(), HashingAlgorithm.SHA256.hashFile(resolved).asHexString()));
         }
+        writeLastUsed(resolved);
         return resolved;
     }
 
@@ -355,6 +355,7 @@ public final class DependencyDownloader {
                     if (sinceUsed > Duration.ofHours(1).toMillis()) {
                         try {
                             Files.delete(f);
+                            Files.deleteIfExists(lastUsedFile(f));
                         } catch (final IOException e) {
                             throw Util.rethrow(e);
                         }
