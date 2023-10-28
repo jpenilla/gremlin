@@ -2,6 +2,7 @@ package xyz.jpenilla.gremlin.gradle
 
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.repositories.MavenArtifactRepository
 import org.gradle.api.attributes.Bundling
 import org.gradle.api.attributes.Category
@@ -9,6 +10,7 @@ import org.gradle.api.attributes.LibraryElements
 import org.gradle.api.attributes.Usage
 import org.gradle.api.initialization.Settings
 import org.gradle.api.internal.GradleInternal
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.kotlin.dsl.create
 import org.gradle.kotlin.dsl.dependencies
@@ -22,25 +24,13 @@ class GremlinPlugin : Plugin<Project> {
         val ext = target.extensions.create("gremlin", GremlinExtension::class)
 
         val runtimeDownload = target.configurations.register("runtimeDownload") {
-            isCanBeResolved = true
-            isCanBeConsumed = false
-            attributes {
-                attribute(Category.CATEGORY_ATTRIBUTE, target.objects.named(Category.LIBRARY))
-                attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, target.objects.named(LibraryElements.JAR))
-                attribute(Bundling.BUNDLING_ATTRIBUTE, target.objects.named(Bundling.EXTERNAL))
-                attribute(Usage.USAGE_ATTRIBUTE, target.objects.named(Usage.JAVA_RUNTIME))
-            }
+            makeResolvable()
+            runtimeClasspathAttributes(target.objects)
         }
 
         val jarRelocatorRuntime = target.configurations.register("jarRelocatorRuntime") {
-            isCanBeResolved = true
-            isCanBeConsumed = false
-            attributes {
-                attribute(Category.CATEGORY_ATTRIBUTE, target.objects.named(Category.LIBRARY))
-                attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, target.objects.named(LibraryElements.JAR))
-                attribute(Bundling.BUNDLING_ATTRIBUTE, target.objects.named(Bundling.EXTERNAL))
-                attribute(Usage.USAGE_ATTRIBUTE, target.objects.named(Usage.JAVA_RUNTIME))
-            }
+            makeResolvable()
+            runtimeClasspathAttributes(target.objects)
         }
 
         val writeDependencies = target.tasks.register("writeDependencies", WriteDependencies::class) {
@@ -62,9 +52,9 @@ class GremlinPlugin : Plugin<Project> {
         target.afterEvaluate {
             if (ext.defaultJarRelocatorDependencies.get()) {
                 target.dependencies {
-                    jarRelocatorRuntime.name("me.lucko:jar-relocator:1.7")
-                    jarRelocatorRuntime.name("org.ow2.asm:asm-commons:9.6")
-                    jarRelocatorRuntime.name("org.ow2.asm:asm:9.6")
+                    for (notation in Dependencies.DEFAULT_JAR_RELOCATOR_RUNTIME) {
+                        jarRelocatorRuntime.name(notation)
+                    }
                 }
             }
 
@@ -72,6 +62,20 @@ class GremlinPlugin : Plugin<Project> {
             writeDependencies {
                 repos.convention(defaultRepos)
             }
+        }
+    }
+
+    private fun Configuration.makeResolvable() {
+        isCanBeResolved = true
+        isCanBeConsumed = false
+    }
+
+    private fun Configuration.runtimeClasspathAttributes(objects: ObjectFactory) {
+        attributes {
+            attribute(Category.CATEGORY_ATTRIBUTE, objects.named(Category.LIBRARY))
+            attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements.JAR))
+            attribute(Bundling.BUNDLING_ATTRIBUTE, objects.named(Bundling.EXTERNAL))
+            attribute(Usage.USAGE_ATTRIBUTE, objects.named(Usage.JAVA_RUNTIME))
         }
     }
 

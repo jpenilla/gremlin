@@ -1,0 +1,10 @@
+package xyz.jpenilla.gremlin.gradle
+
+object Dependencies {
+  val DEFAULT_JAR_RELOCATOR_RUNTIME: List<String> = listOf(
+{% for dep in jarRelocatorDefaultRuntime %}
+    "{{ dep }}"{% if not loop.last %},{% endif %}
+
+{% endfor %}
+  )
+}
