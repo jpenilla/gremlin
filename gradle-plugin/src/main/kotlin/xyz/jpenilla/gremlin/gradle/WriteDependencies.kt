@@ -102,9 +102,9 @@ abstract class WriteDependencies : DefaultTask() {
         val files = files.files.filter { it.name.startsWith("${id.module}-${id.version}") && it.name.endsWith(".jar") }
         val s = StringBuilder()
         for (file in files) {
-            val classifier = file.name.substringAfter("${id.module}-${id.version}").substringBefore(".jar")
+            val classifier = file.name.substringAfter("${id.module}-${id.version}-", missingDelimiterValue = "").substringBefore(".jar")
             val notation = if (classifier.isNotBlank()) {
-                id.displayName + ':' + classifier.substring(1)
+                id.displayName + ':' + classifier
             } else {
                 id.displayName
             }
