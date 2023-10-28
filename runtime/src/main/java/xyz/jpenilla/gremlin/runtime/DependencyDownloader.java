@@ -69,7 +69,7 @@ public final class DependencyDownloader {
 
         final ExecutorService executor = this.makeExecutor();
 
-        final Map<String, ClassLoaderIsolatedJarProcessor> processors = this.createJarProcessors(executor, doingWork);
+        final Map<String, JarProcessor> processors = this.createJarProcessors(executor, doingWork);
 
         final List<Callable<Void>> tasks = this.dependencySet.dependencies().stream().map(dep -> (Callable<Void>) () -> {
             try {
@@ -79,7 +79,7 @@ public final class DependencyDownloader {
                 }
 
                 Path in = resolve;
-                for (final Map.Entry<String, ClassLoaderIsolatedJarProcessor> e : processors.entrySet()) {
+                for (final Map.Entry<String, JarProcessor> e : processors.entrySet()) {
                     final Path out = resolve.resolveSibling(resolve.getFileName().toString().replace(".jar", "-" + e.getKey() + ".jar"));
                     if (Files.isRegularFile(out)) {
                         writeLastUsed(out);
@@ -103,11 +103,13 @@ public final class DependencyDownloader {
 
         this.executeTasks(executor, tasks);
 
-        for (final ClassLoaderIsolatedJarProcessor processor : processors.values()) {
-            try {
-                processor.loader().close();
-            } catch (final Exception e) {
-                throw Util.rethrow(e);
+        for (final JarProcessor processor : processors.values()) {
+            if (processor instanceof ClassLoaderIsolatedJarProcessor isolated) {
+                try {
+                    isolated.loader().close();
+                } catch (final Exception e) {
+                    throw Util.rethrow(e);
+                }
             }
         }
 
@@ -140,11 +142,11 @@ public final class DependencyDownloader {
         }
     }
 
-    private Map<String, ClassLoaderIsolatedJarProcessor> createJarProcessors(
+    private Map<String, JarProcessor> createJarProcessors(
         final ExecutorService executor,
         final Runnable attemptingDownloadCallback
     ) {
-        final Map<String, ClassLoaderIsolatedJarProcessor> processors = new HashMap<>();
+        final Map<String, JarProcessor> processors = new HashMap<>();
         for (final Map.Entry<String, Extension<?>> entry : this.dependencySet.extensions().entrySet()) {
             final String extName = entry.getKey();
             @SuppressWarnings("unchecked") final Extension<Object> ext = (Extension<Object>) entry.getValue();
@@ -153,8 +155,24 @@ public final class DependencyDownloader {
                 continue;
             }
 
+            final List<Dependency> deps = ext.dependencies(state);
+
+            if (deps.isEmpty()) {
+                try {
+                    final Constructor<?> ctr = Class.forName(
+                        ext.processorName(),
+                        true,
+                        ext.getClass().getClassLoader()
+                    ).getDeclaredConstructors()[0];
+                    processors.put(extName, (JarProcessor) ctr.newInstance(state));
+                } catch (final Exception ex) {
+                    throw Util.rethrow(ex);
+                }
+                continue;
+            }
+
             final List<URL> depPaths = new CopyOnWriteArrayList<>();
-            final List<Callable<Void>> tasks = ext.dependencies(state).stream().map(dep -> (Callable<Void>) () -> {
+            final List<Callable<Void>> tasks = deps.stream().map(dep -> (Callable<Void>) () -> {
                 try {
                     depPaths.add(this.resolve(dep, this.dependencySet.repositories(), attemptingDownloadCallback).toUri().toURL());
                     return null;
