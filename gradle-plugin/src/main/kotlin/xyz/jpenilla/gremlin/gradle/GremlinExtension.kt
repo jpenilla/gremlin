@@ -4,6 +4,7 @@ import org.gradle.api.provider.Property
 
 abstract class GremlinExtension {
     abstract val defaultJarRelocatorDependencies: Property<Boolean>
+    abstract val defaultGremlinRuntimeDependency: Property<Boolean>
 
     init {
         init()
@@ -11,5 +12,6 @@ abstract class GremlinExtension {
 
     private fun init() {
         defaultJarRelocatorDependencies.convention(true)
+        defaultGremlinRuntimeDependency.convention(true)
     }
 }

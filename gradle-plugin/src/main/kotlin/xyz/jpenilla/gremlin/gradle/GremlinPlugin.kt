@@ -41,11 +41,10 @@ class GremlinPlugin : Plugin<Project> {
             outputDir.convention(target.layout.buildDirectory.dir("generated/writeDependencies"))
         }
 
-        target.extensions.getByType<JavaPluginExtension>().apply {
-            sourceSets.named("main") {
-                resources {
-                    srcDir(writeDependencies)
-                }
+        val java = target.extensions.getByType<JavaPluginExtension>()
+        java.sourceSets.named("main") {
+            resources {
+                srcDir(writeDependencies)
             }
         }
 
@@ -55,6 +54,11 @@ class GremlinPlugin : Plugin<Project> {
                     for (notation in Dependencies.DEFAULT_JAR_RELOCATOR_RUNTIME) {
                         jarRelocatorRuntime.name(notation)
                     }
+                }
+            }
+            if (ext.defaultGremlinRuntimeDependency.get()) {
+                target.dependencies {
+                    java.sourceSets.getByName("main").implementationConfigurationName(Dependencies.DEFAULT_GREMLIN_RUNTIME)
                 }
             }
 

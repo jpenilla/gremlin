@@ -45,6 +45,7 @@ sourceSets {
                     jarRelocatorDefaultRuntime.incoming.resolutionResult.root.dependencies
                         .map { (it as ResolvedDependencyResult).resolvedVariant.owner.displayName }
                 })
+                properties.put("gremlinVer", project.version)
             }
         }
     }

@@ -7,4 +7,6 @@ object Dependencies {
 
 {% endfor %}
   )
+
+  const val DEFAULT_GREMLIN_RUNTIME: String = "xyz.jpenilla:gremlin-runtime:{{ gremlinVer }}"
 }
