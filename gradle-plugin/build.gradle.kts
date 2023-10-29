@@ -10,11 +10,15 @@ repositories {
     mavenCentral()
 }
 
-gradlePlugin {
-    val plugin by plugins.creating {
-        id = "xyz.jpenilla.gremlin-gradle"
-        implementationClass = "xyz.jpenilla.gremlin.gradle.GremlinPlugin"
-    }
+indraPluginPublishing {
+    website("https://github.com/jpenilla/gremlin")
+    plugin(
+        "gremlin-gradle",
+        "xyz.jpenilla.gremlin.gradle.GremlinPlugin",
+        "Gremlin",
+        "Export dependency sets to be resolved by gremlin-runtime",
+        listOf()
+    )
 }
 
 tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class) {

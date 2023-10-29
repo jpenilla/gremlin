@@ -104,14 +104,7 @@ public record DependencySet(
                     case "repos" -> repositories.add(line);
                     case "deps" -> {
                         final String[] split = line.split(" ");
-                        final String[] coords = split[0].split(":");
-                        dependencies.add(new Dependency(
-                            coords[0],
-                            coords[1],
-                            coords[2],
-                            coords.length == 4 ? coords[3] : null,
-                            split[1]
-                        ));
+                        dependencies.add(Dependency.parse(split[0], split[1]));
                     }
                     default -> extraSections.computeIfAbsent(currentSection, $ -> new ArrayList<>()).add(line);
                 }

@@ -277,14 +277,13 @@ public final class DependencyResolver implements AutoCloseable {
                 throw err;
             }
         } catch (final InterruptedException e) {
-            this.logger.error("Interrupted", e);
-            Thread.currentThread().interrupt();
+            throw Util.rethrow(e);
         }
     }
 
     private Path resolve(final Dependency dependency, final List<String> repositories, final DependencyCache cache, final Runnable attemptingDownloadCallback) throws IOException {
         @Nullable Path resolved = null;
-        final Path outputFile = cache.cacheDirectory().resolve(String.format(
+        final String mavenArtifactPath = String.format(
             "%s/%s/%s/%s-%s%s.jar",
             dependency.group().replace('.', '/'),
             dependency.name(),
@@ -292,7 +291,8 @@ public final class DependencyResolver implements AutoCloseable {
             dependency.name(),
             dependency.version(),
             dependency.classifier() == null ? "" : '-' + dependency.classifier()
-        ));
+        );
+        final Path outputFile = cache.cacheDirectory().resolve(mavenArtifactPath);
         if (Files.exists(outputFile)) {
             if (checkHash(dependency, outputFile)) {
                 writeLastUsed(outputFile);
@@ -301,17 +301,11 @@ public final class DependencyResolver implements AutoCloseable {
             Files.delete(outputFile);
         }
         attemptingDownloadCallback.run();
-        for (final String repository : repositories) {
-            final String urlString = String.format(
-                "%s%s/%s/%s/%s-%s%s.jar",
-                repository,
-                dependency.group().replace('.', '/'),
-                dependency.name(),
-                dependency.version(),
-                dependency.name(),
-                dependency.version(),
-                dependency.classifier() == null ? "" : '-' + dependency.classifier()
-            );
+        for (String repository : repositories) {
+            if (!repository.endsWith("/")) {
+                repository = repository.substring(0, repository.length() - 1);
+            }
+            final String urlString = repository + mavenArtifactPath;
 
             final HttpRequest request;
             try {
@@ -329,8 +323,7 @@ public final class DependencyResolver implements AutoCloseable {
                     StandardOpenOption.WRITE
                 ));
             } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new RuntimeException(e);
+                throw Util.rethrow(e);
             }
             if (response == null || response.statusCode() != 200) {
                 //this.logger.info("Download " + urlString + " failed");

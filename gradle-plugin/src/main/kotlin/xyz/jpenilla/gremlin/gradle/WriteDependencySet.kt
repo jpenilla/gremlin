@@ -91,7 +91,11 @@ abstract class WriteDependencySet : DefaultTask() {
 
         out.sectionHeader("repos")
         for (repo in repos.get()) {
-            out.append(repo).append("\n")
+            out.append(repo)
+            if (!repo.endsWith('/')) {
+                out.append('/')
+            }
+            out.append("\n")
         }
         out.sectionEnd()
 
@@ -129,11 +133,16 @@ abstract class WriteDependencySet : DefaultTask() {
         val filter = files.files.filter { it.name.startsWith("${id.module}-${id.version}") && it.name.endsWith(".jar") }
         val s = StringBuilder()
         for (file in filter) {
-            val classifier = file.name.substringAfter("${id.module}-${id.version}-", missingDelimiterValue = "").substringBefore(".jar")
-            val notation = if (classifier.isNotBlank()) {
-                id.displayName + ':' + classifier
+            val displayName = if (id.version.endsWith("-SNAPSHOT")) {
+                id.displayName.replace("-SNAPSHOT:", "-")
             } else {
                 id.displayName
+            }
+            val classifier = file.name.substringAfter("${id.module}-${id.version}-", missingDelimiterValue = "").substringBefore(".jar")
+            val notation = if (classifier.isNotBlank()) {
+                "$displayName:$classifier"
+            } else {
+                displayName
             }
             s.append("$linePrefix$notation ${file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()}\n")
         }

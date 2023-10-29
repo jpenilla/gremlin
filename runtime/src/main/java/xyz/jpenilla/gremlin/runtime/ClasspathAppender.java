@@ -2,6 +2,7 @@ package xyz.jpenilla.gremlin.runtime;
 
 import java.nio.file.Path;
 import java.util.Collection;
+import org.jspecify.annotations.NullMarked;
 import xyz.jpenilla.gremlin.runtime.platformsupport.FabricClasspathAppender;
 import xyz.jpenilla.gremlin.runtime.platformsupport.PaperClasspathAppender;
 import xyz.jpenilla.gremlin.runtime.platformsupport.VelocityClasspathAppender;
@@ -15,6 +16,7 @@ import xyz.jpenilla.gremlin.runtime.platformsupport.VelocityClasspathAppender;
  * @see FabricClasspathAppender
  */
 @FunctionalInterface
+@NullMarked
 public interface ClasspathAppender {
     void append(Path path);
 

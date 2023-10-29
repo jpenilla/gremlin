@@ -15,14 +15,7 @@ public final class RelocationExtension implements Extension<RelocationExtension.
         for (final String line : lines) {
             if (line.startsWith("dep ")) {
                 final String[] split = line.split(" ");
-                final String[] coords = split[1].split(":");
-                deps.add(new Dependency(
-                    coords[0],
-                    coords[1],
-                    coords[2],
-                    coords.length == 4 ? coords[3] : null,
-                    split[2]
-                ));
+                deps.add(Dependency.parse(split[1], split[2]));
             } else {
                 reloc.add(line);
             }
