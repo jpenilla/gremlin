@@ -33,12 +33,10 @@ class GremlinPlugin : Plugin<Project> {
             runtimeClasspathAttributes(target.objects)
         }
 
-        val writeDependencies = target.tasks.register("writeDependencies", WriteDependencies::class) {
-            tree.convention(runtimeDownload.flatMap { it.incoming.resolutionResult.rootComponent })
-            relocTree.convention(jarRelocatorRuntime.flatMap { it.incoming.resolutionResult.rootComponent })
-            files.from(runtimeDownload, jarRelocatorRuntime)
+        val writeDependencies = target.tasks.register("writeDependencies", WriteDependencySet::class) {
+            configuration(runtimeDownload)
+            relocationConfiguration(jarRelocatorRuntime)
             outputFileName.convention("dependencies.txt")
-            outputDir.convention(target.layout.buildDirectory.dir("generated/writeDependencies"))
         }
 
         val java = target.extensions.getByType<JavaPluginExtension>()

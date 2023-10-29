@@ -1,21 +1,25 @@
 package xyz.jpenilla.gremlin.gradle
 
 import org.gradle.api.DefaultTask
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.result.DependencyResult
 import org.gradle.api.artifacts.result.ResolvedComponentResult
 import org.gradle.api.artifacts.result.ResolvedDependencyResult
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.file.ProjectLayout
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
+import org.gradle.api.provider.Provider
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import javax.inject.Inject
 
-abstract class WriteDependencies : DefaultTask() {
+abstract class WriteDependencySet : DefaultTask() {
     companion object {
         protected const val SECTION_END = "__end__\n"
     }
@@ -30,6 +34,9 @@ abstract class WriteDependencies : DefaultTask() {
     @get:InputFiles
     abstract val files: ConfigurableFileCollection
 
+    @get:InputFiles
+    abstract val relocFiles: ConfigurableFileCollection
+
     @get:Input
     abstract val outputFileName: Property<String>
 
@@ -40,21 +47,41 @@ abstract class WriteDependencies : DefaultTask() {
     abstract val repos: ListProperty<String>
 
     @get:Input
-    abstract val transitive: Property<Boolean>
-
-    @get:Input
     abstract val relocations: ListProperty<String>
+
+    @get:Inject
+    abstract val layout: ProjectLayout
 
     init {
         init()
     }
 
     private fun init() {
-        transitive.convention(true)
+        outputDir.convention(layout.buildDirectory.dir("generated/gremlin/$name"))
     }
 
     fun relocate(from: String, to: String) {
         relocations.add("$from $to")
+    }
+
+    fun configuration(configuration: Configuration) {
+        tree.set(configuration.incoming.resolutionResult.rootComponent)
+        files.setFrom(configuration)
+    }
+
+    fun configuration(configuration: Provider<Configuration>) {
+        tree.set(configuration.flatMap { it.incoming.resolutionResult.rootComponent })
+        files.setFrom(configuration)
+    }
+
+    fun relocationConfiguration(configuration: Configuration) {
+        relocTree.set(configuration.incoming.resolutionResult.rootComponent)
+        relocFiles.setFrom(configuration)
+    }
+
+    fun relocationConfiguration(configuration: Provider<Configuration>) {
+        relocTree.set(configuration.flatMap { it.incoming.resolutionResult.rootComponent })
+        relocFiles.setFrom(configuration)
     }
 
     @TaskAction
@@ -70,7 +97,7 @@ abstract class WriteDependencies : DefaultTask() {
 
         out.sectionHeader("deps")
         for (dependency in deps(tree.get())) {
-            out.append(dependencyLines(dependency))
+            out.append(dependencyLines(files, dependency))
         }
         out.sectionEnd()
 
@@ -78,7 +105,7 @@ abstract class WriteDependencies : DefaultTask() {
             out.sectionHeader("relocation")
 
             for (dependency in deps(relocTree.get())) {
-                out.append("dep ").append(dependencyLines(dependency))
+                out.append(dependencyLines(relocFiles, dependency, linePrefix = "dep "))
             }
 
             for (r in relocations.get().sorted()) {
@@ -97,18 +124,18 @@ abstract class WriteDependencies : DefaultTask() {
     open fun touchOutput(out: StringBuilder) {
     }
 
-    protected fun dependencyLines(dependency: ResolvedDependencyResult): String {
+    protected fun dependencyLines(files: ConfigurableFileCollection, dependency: ResolvedDependencyResult, linePrefix: String = ""): String {
         val id = dependency.resolvedVariant.owner as ModuleComponentIdentifier
-        val files = files.files.filter { it.name.startsWith("${id.module}-${id.version}") && it.name.endsWith(".jar") }
+        val filter = files.files.filter { it.name.startsWith("${id.module}-${id.version}") && it.name.endsWith(".jar") }
         val s = StringBuilder()
-        for (file in files) {
+        for (file in filter) {
             val classifier = file.name.substringAfter("${id.module}-${id.version}-", missingDelimiterValue = "").substringBefore(".jar")
             val notation = if (classifier.isNotBlank()) {
                 id.displayName + ':' + classifier
             } else {
                 id.displayName
             }
-            s.append("$notation ${file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()}\n")
+            s.append("$linePrefix$notation ${file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()}\n")
         }
         return s.toString()
     }
@@ -136,9 +163,8 @@ abstract class WriteDependencies : DefaultTask() {
                 continue
             }
             add(dependency)
-            if (transitive.get()) {
-                addFrom(dependency.selected.dependencies)
-            }
+
+            addFrom(dependency.selected.dependencies)
         }
     }
 }

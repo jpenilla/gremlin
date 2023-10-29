@@ -15,11 +15,9 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -32,7 +30,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Stream;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -40,25 +37,71 @@ import xyz.jpenilla.gremlin.runtime.util.HashingAlgorithm;
 import xyz.jpenilla.gremlin.runtime.util.Util;
 
 @NullMarked
-public final class DependencyDownloader {
+public final class DependencyResolver implements AutoCloseable {
     private final Logger logger;
-    private final Path cacheDir;
-    private final DependencySet dependencySet;
     private final HttpClient client;
+    private final Map<String, ClassLoaderIsolatedJarProcessorProvider> isolatedProcessorProviders = new ConcurrentHashMap<>();
+    private final Map<Thread, Object> resolving = new HashMap<>();
+    private volatile boolean closed = false;
 
-    public DependencyDownloader(
-        final Logger logger,
-        final Path cacheDir,
-        final DependencySet dependencySet
-    ) {
+    public DependencyResolver(final Logger logger) {
         this.logger = logger;
-        this.cacheDir = cacheDir;
-        this.dependencySet = dependencySet;
         this.client = HttpClient.newHttpClient();
     }
 
-    public Set<Path> resolve() {
-        final Set<Path> ret = ConcurrentHashMap.newKeySet();
+    /**
+     * Closes any isolated {@link ClassLoader ClassLoaders} that were opened in the process of resolving
+     * dependencies.
+     */
+    @Override
+    public synchronized void close() {
+        if (this.closed) {
+            throw new IllegalStateException("Already closed");
+        }
+        if (!this.resolving.isEmpty()) {
+            throw new IllegalStateException("Cannot close while resolving");
+        }
+        this.closed = true;
+        for (final ClassLoaderIsolatedJarProcessorProvider provider : this.isolatedProcessorProviders.values()) {
+            try {
+                provider.loader().close();
+            } catch (final Exception e) {
+                throw Util.rethrow(e);
+            }
+        }
+        this.isolatedProcessorProviders.clear();
+    }
+
+    public ResolvedDependencySet resolve(final DependencySet dependencySet, final DependencyCache cache) {
+        return this.resolve(dependencySet, cache, cache);
+    }
+
+    public ResolvedDependencySet resolve(
+        final DependencySet dependencySet,
+        final DependencyCache cache,
+        final DependencyCache extensionDependencyCache
+    ) {
+        synchronized (this) {
+            if (this.closed) {
+                throw new IllegalStateException("This " + DependencyResolver.class.getSimpleName() + " has been closed");
+            }
+            this.resolving.put(Thread.currentThread(), new Object());
+        }
+        try {
+            return this.resolve_(dependencySet, cache, extensionDependencyCache);
+        } finally {
+            synchronized (this) {
+                this.resolving.remove(Thread.currentThread());
+            }
+        }
+    }
+
+    private ResolvedDependencySet resolve_(
+        final DependencySet dependencySet,
+        final DependencyCache cache,
+        final DependencyCache extensionDependencyCache
+    ) {
+        final Map<Dependency, Path> resolved = new ConcurrentHashMap<>();
         final AtomicBoolean didWork = new AtomicBoolean(false);
 
         final Runnable doingWork = () -> {
@@ -69,11 +112,11 @@ public final class DependencyDownloader {
 
         final ExecutorService executor = this.makeExecutor();
 
-        final Map<String, JarProcessor> processors = this.createJarProcessors(executor, doingWork);
+        final Map<String, JarProcessor> processors = this.createJarProcessors(dependencySet, executor, extensionDependencyCache, doingWork);
 
-        final List<Callable<Void>> tasks = this.dependencySet.dependencies().stream().map(dep -> (Callable<Void>) () -> {
+        final List<Callable<Void>> tasks = dependencySet.dependencies().stream().map(dep -> (Callable<Void>) () -> {
             try {
-                final Path resolve = this.resolve(dep, this.dependencySet.repositories(), doingWork);
+                final Path resolve = this.resolve(dep, dependencySet.repositories(), cache, doingWork);
                 if (!resolve.getFileName().toString().endsWith(".jar")) {
                     return null;
                 }
@@ -94,7 +137,7 @@ public final class DependencyDownloader {
                     writeLastUsed(out);
                     in = out;
                 }
-                ret.add(in);
+                resolved.put(dep, in);
             } catch (final IOException | IllegalArgumentException e) {
                 throw new RuntimeException("Exception resolving " + dep, e);
             }
@@ -103,54 +146,50 @@ public final class DependencyDownloader {
 
         this.executeTasks(executor, tasks);
 
-        for (final JarProcessor processor : processors.values()) {
-            if (processor instanceof ClassLoaderIsolatedJarProcessor isolated) {
-                try {
-                    isolated.loader().close();
-                } catch (final Exception e) {
-                    throw Util.rethrow(e);
-                }
-            }
-        }
-
         Util.shutdownExecutor(executor, TimeUnit.MILLISECONDS, 50L);
-
-        try {
-            this.cleanCache();
-        } catch (final IOException ex) {
-            this.logger.warn("Failed to clean cache", ex);
-        }
 
         if (didWork.get()) {
             this.logger.info("Done resolving dependencies.");
         }
 
-        return ret;
+        return new ResolvedDependencySet(Map.copyOf(resolved));
     }
 
-    private record ClassLoaderIsolatedJarProcessor(URLClassLoader loader, Object processor) implements JarProcessor {
-        @Override
-        public void process(final Path input, final Path output) throws IOException {
+    private record ClassLoaderIsolatedJarProcessorProvider(URLClassLoader loader, Constructor<?> processorConstructor) {
+        JarProcessor processor(final Object config) {
             try {
-                final Method mth = this.processor.getClass().getDeclaredMethod("process", Path.class, Path.class);
-                mth.invoke(this.processor, input, output);
-            } catch (final InvocationTargetException e) {
-                throw Util.rethrow(e.getCause());
-            } catch (final ReflectiveOperationException e) {
+                return new IsolatedProcessor(this.processorConstructor.newInstance(config));
+            } catch (final Exception e) {
                 throw Util.rethrow(e);
+            }
+        }
+
+        private record IsolatedProcessor(Object processor) implements JarProcessor {
+            @Override
+            public void process(final Path input, final Path output) {
+                try {
+                    final Method mth = this.processor.getClass().getDeclaredMethod("process", Path.class, Path.class);
+                    mth.invoke(this.processor, input, output);
+                } catch (final InvocationTargetException e) {
+                    throw Util.rethrow(e.getCause());
+                } catch (final ReflectiveOperationException e) {
+                    throw Util.rethrow(e);
+                }
             }
         }
     }
 
     private Map<String, JarProcessor> createJarProcessors(
+        final DependencySet dependencySet,
         final ExecutorService executor,
+        final DependencyCache extensionDependencyCache,
         final Runnable attemptingDownloadCallback
     ) {
         final Map<String, JarProcessor> processors = new HashMap<>();
-        for (final Map.Entry<String, Extension<?>> entry : this.dependencySet.extensions().entrySet()) {
+        for (final Map.Entry<String, Extension<?>> entry : dependencySet.extensions().entrySet()) {
             final String extName = entry.getKey();
             @SuppressWarnings("unchecked") final Extension<Object> ext = (Extension<Object>) entry.getValue();
-            final @Nullable Object state = this.dependencySet.extensionData(extName);
+            final @Nullable Object state = dependencySet.extensionData(extName);
             if (state == null) {
                 continue;
             }
@@ -171,30 +210,34 @@ public final class DependencyDownloader {
                 continue;
             }
 
-            final List<URL> depPaths = new CopyOnWriteArrayList<>();
-            final List<Callable<Void>> tasks = deps.stream().map(dep -> (Callable<Void>) () -> {
+            final ClassLoaderIsolatedJarProcessorProvider provider = this.isolatedProcessorProviders.computeIfAbsent(ext.getClass().getName() + ":" + ext.processorName(), $ -> {
+                final List<URL> depPaths = new CopyOnWriteArrayList<>();
+                final List<Callable<Void>> tasks = deps.stream().map(dep -> (Callable<Void>) () -> {
+                    try {
+                        depPaths.add(this.resolve(dep, dependencySet.repositories(), extensionDependencyCache, attemptingDownloadCallback).toUri().toURL());
+                        return null;
+                    } catch (final IOException ex) {
+                        throw Util.rethrow(ex);
+                    }
+                }).toList();
+                this.executeTasks(executor, tasks);
+                depPaths.add(currentClasspathURL(ext.getClass()));
+
+                final var loader = new URLClassLoader(depPaths.toArray(URL[]::new), ext.getClass().getClassLoader()) {
+                    Class<?> load(final String name) throws ClassNotFoundException {
+                        return this.findClass(name);
+                    }
+                };
+
                 try {
-                    depPaths.add(this.resolve(dep, this.dependencySet.repositories(), attemptingDownloadCallback).toUri().toURL());
-                    return null;
-                } catch (final IOException ex) {
-                    throw Util.rethrow(ex);
+                    final Constructor<?> ctr = loader.load(ext.processorName()).getDeclaredConstructors()[0];
+                    return new ClassLoaderIsolatedJarProcessorProvider(loader, ctr);
+                } catch (final Exception e) {
+                    throw Util.rethrow(e);
                 }
-            }).toList();
-            this.executeTasks(executor, tasks);
-            depPaths.add(currentClasspathURL(ext.getClass()));
+            });
 
-            final var loader = new URLClassLoader(depPaths.toArray(URL[]::new), ext.getClass().getClassLoader()) {
-                Class<?> load(final String name) throws ClassNotFoundException {
-                    return this.findClass(name);
-                }
-            };
-
-            try {
-                final Constructor<?> ctr = loader.load(ext.processorName()).getDeclaredConstructors()[0];
-                processors.put(extName, new ClassLoaderIsolatedJarProcessor(loader, ctr.newInstance(state)));
-            } catch (final Exception ex) {
-                throw Util.rethrow(ex);
-            }
+            processors.put(extName, provider.processor(state));
         }
         return processors;
     }
@@ -239,9 +282,9 @@ public final class DependencyDownloader {
         }
     }
 
-    private Path resolve(final Dependency dependency, final List<String> repositories, final Runnable attemptingDownloadCallback) throws IOException {
+    private Path resolve(final Dependency dependency, final List<String> repositories, final DependencyCache cache, final Runnable attemptingDownloadCallback) throws IOException {
         @Nullable Path resolved = null;
-        final Path outputFile = this.cacheDir.resolve(String.format(
+        final Path outputFile = cache.cacheDirectory().resolve(String.format(
             "%s/%s/%s/%s-%s%s.jar",
             dependency.group().replace('.', '/'),
             dependency.name(),
@@ -316,11 +359,11 @@ public final class DependencyDownloader {
         }
     }
 
-    private static Path lastUsedFile(final Path f) {
+    static Path lastUsedFile(final Path f) {
         return f.resolveSibling(f.getFileName().toString() + ".last-used.txt");
     }
 
-    private static long lastUsed(final Path f) {
+    static long lastUsed(final Path f) {
         final Path file = lastUsedFile(f);
         if (!Files.isRegularFile(file)) {
             return -1;
@@ -343,28 +386,6 @@ public final class DependencyDownloader {
         );
     }
 
-    private void cleanCache() throws IOException {
-        try (final Stream<Path> s = Files.walk(this.cacheDir)) {
-            s.forEach(f -> {
-                if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar")) {
-                    final long lastUsed = lastUsed(f);
-                    if (lastUsed == -1) {
-                        return;
-                    }
-                    final long sinceUsed = System.currentTimeMillis() - lastUsed;
-                    if (sinceUsed > Duration.ofHours(1).toMillis()) {
-                        try {
-                            Files.delete(f);
-                            Files.deleteIfExists(lastUsedFile(f));
-                        } catch (final IOException e) {
-                            throw Util.rethrow(e);
-                        }
-                    }
-                }
-            });
-        }
-    }
-
     private static final class DownloaderThreadFactory implements ThreadFactory {
         private static final AtomicInteger poolNumber = new AtomicInteger(1);
         private final AtomicInteger threadNumber = new AtomicInteger(1);
@@ -372,7 +393,7 @@ public final class DependencyDownloader {
         private final Logger logger;
 
         DownloaderThreadFactory(final Logger logger) {
-            this.namePrefix = DependencyDownloader.class.getSimpleName() + "-pool-" + poolNumber.getAndIncrement() + "-thread-";
+            this.namePrefix = DependencyResolver.class.getSimpleName() + "-pool-" + poolNumber.getAndIncrement() + "-thread-";
             this.logger = logger;
         }
 
