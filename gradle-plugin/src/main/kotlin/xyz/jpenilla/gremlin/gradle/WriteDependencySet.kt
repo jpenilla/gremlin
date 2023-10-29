@@ -129,7 +129,7 @@ abstract class WriteDependencySet : DefaultTask() {
     }
 
     protected fun dependencyLines(files: ConfigurableFileCollection, dependency: ResolvedDependencyResult, linePrefix: String = ""): String {
-        val id = dependency.resolvedVariant.owner as ModuleComponentIdentifier
+        val id = dependency.resolvedVariant.owner as? ModuleComponentIdentifier ?: return ""
         val filter = files.files.filter { it.name.startsWith("${id.module}-${id.version}") && it.name.endsWith(".jar") }
         val s = StringBuilder()
         for (file in filter) {
