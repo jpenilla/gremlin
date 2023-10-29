@@ -38,6 +38,9 @@ public final class DependencyCache {
      * @param unit            unused time unit
      */
     public void cleanup(final long deleteUnusedFor, final TemporalUnit unit) {
+        if (!Files.isDirectory(this.dir)) {
+            return;
+        }
         try (final Stream<Path> s = Files.walk(this.dir)) {
             for (final Path f : s.toList()) {
                 if (Files.isRegularFile(f) && f.getFileName().toString().endsWith(".jar")) {
