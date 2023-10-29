@@ -8,6 +8,11 @@ plugins {
 
 repositories {
     mavenCentral()
+    gradlePluginPortal()
+}
+
+dependencies {
+    compileOnly("com.github.johnrengelman:shadow:8.1.1")
 }
 
 indraPluginPublishing {
