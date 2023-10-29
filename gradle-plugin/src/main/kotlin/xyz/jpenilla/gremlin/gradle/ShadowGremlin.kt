@@ -11,7 +11,7 @@ import java.util.concurrent.ThreadLocalRandom
  * Helpers for using [GremlinPlugin] with [ShadowPlugin].
  */
 object ShadowGremlin {
-    fun copyRelocations(
+    fun copyGremlinRelocations(
         from: TaskProvider<WriteDependencySet>,
         to: TaskProvider<ShadowJar>
     ) {
@@ -30,7 +30,7 @@ object ShadowGremlin {
         }
     }
 
-    fun copyRelocations(
+    fun copyShadowRelocations(
         from: TaskProvider<ShadowJar>,
         to: TaskProvider<WriteDependencySet>
     ) {
