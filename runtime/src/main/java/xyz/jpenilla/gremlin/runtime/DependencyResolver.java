@@ -308,7 +308,7 @@ public final class DependencyResolver implements AutoCloseable {
         attemptingDownloadCallback.run();
         for (String repository : repositories) {
             if (!repository.endsWith("/")) {
-                repository = repository.substring(0, repository.length() - 1);
+                repository = repository + '/';
             }
             final String urlString = repository + mavenArtifactPath;
 
