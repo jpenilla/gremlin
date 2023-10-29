@@ -38,6 +38,9 @@ import xyz.jpenilla.gremlin.runtime.util.Util;
 
 @NullMarked
 public final class DependencyResolver implements AutoCloseable {
+    private static final String USER_AGENT_HEADER = "User-Agent";
+    private static final String USER_AGENT = "gremlin";
+
     private final Logger logger;
     private final HttpClient client;
     private final Map<String, ClassLoaderIsolatedJarProcessorProvider> isolatedProcessorProviders = new ConcurrentHashMap<>();
@@ -46,7 +49,9 @@ public final class DependencyResolver implements AutoCloseable {
 
     public DependencyResolver(final Logger logger) {
         this.logger = logger;
-        this.client = HttpClient.newHttpClient();
+        this.client = HttpClient.newBuilder()
+            .followRedirects(HttpClient.Redirect.NORMAL)
+            .build();
     }
 
     /**
@@ -309,7 +314,10 @@ public final class DependencyResolver implements AutoCloseable {
 
             final HttpRequest request;
             try {
-                request = HttpRequest.newBuilder(new URI(urlString)).GET().build();
+                request = HttpRequest.newBuilder(new URI(urlString))
+                    .GET()
+                    .header(USER_AGENT_HEADER, USER_AGENT)
+                    .build();
             } catch (final URISyntaxException e) {
                 throw new RuntimeException(e);
             }
