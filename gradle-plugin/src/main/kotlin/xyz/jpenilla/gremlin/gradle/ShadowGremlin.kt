@@ -46,12 +46,7 @@ object ShadowGremlin {
                 "copiedRelocations${ThreadLocalRandom.current().nextInt()}".replace("-", ""),
                 copy
             )
-            doFirst {
-                for (reloc in copy.get()) {
-                    val s = reloc.split(" ")
-                    relocate(this, s[0], s[1])
-                }
-            }
+            relocations.addAll(copy)
         }
     }
 
