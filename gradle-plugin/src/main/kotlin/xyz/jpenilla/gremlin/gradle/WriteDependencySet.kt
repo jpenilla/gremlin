@@ -3,20 +3,25 @@ package xyz.jpenilla.gremlin.gradle
 import org.gradle.api.DefaultTask
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
-import org.gradle.api.artifacts.result.DependencyResult
-import org.gradle.api.artifacts.result.ResolvedComponentResult
-import org.gradle.api.artifacts.result.ResolvedDependencyResult
+import org.gradle.api.artifacts.result.ResolvedArtifactResult
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
+import org.gradle.api.internal.artifacts.repositories.resolver.MavenUniqueSnapshotComponentIdentifier
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
+import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import org.gradle.internal.component.external.model.DefaultModuleComponentArtifactIdentifier
+import org.gradle.internal.component.local.model.ComponentFileArtifactIdentifier
+import org.gradle.internal.component.model.IvyArtifactName
+import java.util.function.Function
 import javax.inject.Inject
 
 abstract class WriteDependencySet : DefaultTask() {
@@ -24,18 +29,18 @@ abstract class WriteDependencySet : DefaultTask() {
         protected const val SECTION_END = "__end__\n"
     }
 
-    @get:Input
-    abstract val tree: Property<ResolvedComponentResult>
+    @get:Internal
+    abstract val artifacts: SetProperty<ResolvedArtifactResult>
 
-    @get:Input
+    @get:InputFiles
+    abstract val artifactFiles: ConfigurableFileCollection
+
+    @get:Internal
+    abstract val relocArtifacts: SetProperty<ResolvedArtifactResult>
+
+    @get:InputFiles
     @get:Optional
-    abstract val relocTree: Property<ResolvedComponentResult>
-
-    @get:InputFiles
-    abstract val files: ConfigurableFileCollection
-
-    @get:InputFiles
-    abstract val relocFiles: ConfigurableFileCollection
+    abstract val relocArtifactFiles: ConfigurableFileCollection
 
     @get:Input
     abstract val outputFileName: Property<String>
@@ -65,23 +70,23 @@ abstract class WriteDependencySet : DefaultTask() {
     }
 
     fun configuration(configuration: Configuration) {
-        tree.set(configuration.incoming.resolutionResult.rootComponent)
-        files.setFrom(configuration)
+        artifacts.set(configuration.incoming.artifacts)
+        artifactFiles.setFrom(configuration)
     }
 
     fun configuration(configuration: Provider<Configuration>) {
-        tree.set(configuration.flatMap { it.incoming.resolutionResult.rootComponent })
-        files.setFrom(configuration)
+        artifacts.set(configuration.map { it.incoming.artifacts })
+        artifactFiles.setFrom(configuration)
     }
 
     fun relocationConfiguration(configuration: Configuration) {
-        relocTree.set(configuration.incoming.resolutionResult.rootComponent)
-        relocFiles.setFrom(configuration)
+        relocArtifacts.set(configuration.incoming.artifacts)
+        relocArtifactFiles.setFrom(configuration)
     }
 
     fun relocationConfiguration(configuration: Provider<Configuration>) {
-        relocTree.set(configuration.flatMap { it.incoming.resolutionResult.rootComponent })
-        relocFiles.setFrom(configuration)
+        relocArtifacts.set(configuration.map { it.incoming.artifacts })
+        relocArtifactFiles.setFrom(configuration)
     }
 
     @TaskAction
@@ -100,16 +105,16 @@ abstract class WriteDependencySet : DefaultTask() {
         out.sectionEnd()
 
         out.sectionHeader("deps")
-        for (dependency in deps(tree.get())) {
-            out.append(dependencyLines(files, dependency))
+        for (dependency in artifacts.sorted()) {
+            out.append(dependencyLine(dependency))
         }
         out.sectionEnd()
 
         if (relocations.isPresent && relocations.get().isNotEmpty()) {
             out.sectionHeader("relocation")
 
-            for (dependency in deps(relocTree.get())) {
-                out.append(dependencyLines(relocFiles, dependency, linePrefix = "dep "))
+            for (dependency in relocArtifacts.sorted()) {
+                out.append("dep ").append(dependencyLine(dependency))
             }
 
             for (r in relocations.get().sorted()) {
@@ -125,28 +130,32 @@ abstract class WriteDependencySet : DefaultTask() {
         outputFile.writeText(out.toString())
     }
 
-    open fun touchOutput(out: StringBuilder) {
+    protected open fun touchOutput(out: StringBuilder) {
     }
 
-    protected fun dependencyLines(files: ConfigurableFileCollection, dependency: ResolvedDependencyResult, linePrefix: String = ""): String {
-        val id = dependency.resolvedVariant.owner as? ModuleComponentIdentifier ?: return ""
-        val filter = files.files.filter { it.name.startsWith("${id.module}-${id.version}") && it.name.endsWith(".jar") }
-        val s = StringBuilder()
-        for (file in filter) {
-            val displayName = if (id.version.endsWith("-SNAPSHOT")) {
-                id.displayName.replace("-SNAPSHOT:", "-")
-            } else {
-                id.displayName
-            }
-            val classifier = file.name.substringAfter("${id.module}-${id.version}-", missingDelimiterValue = "").substringBefore(".jar")
-            val notation = if (classifier.isNotBlank()) {
-                "$displayName:$classifier"
-            } else {
-                displayName
-            }
-            s.append("$linePrefix$notation ${file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()}\n")
+    protected fun dependencyLine(artifact: ResolvedArtifactResult, appendNewline: Boolean = true): String {
+        val artifactId = artifact.id
+        val componentId = artifactId.componentIdentifier as? ModuleComponentIdentifier ?: return ""
+
+        val ivyName = when (artifactId) {
+            is DefaultModuleComponentArtifactIdentifier -> artifactId.name
+            is ComponentFileArtifactIdentifier -> artifactId.rawFileName as? IvyArtifactName
+            else -> return ""
         }
-        return s.toString()
+        val classifier = ivyName?.classifier?.takeIf { it.isNotBlank() }
+
+        var notation = if (componentId is MavenUniqueSnapshotComponentIdentifier) {
+            "${componentId.group}:${componentId.module}:${componentId.timestampedVersion}"
+        } else {
+            "${componentId.group}:${componentId.module}:${componentId.version}"
+        }
+        if (classifier != null) {
+            notation = "$notation:$classifier"
+        }
+
+        val hashString = artifact.file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()
+
+        return "$notation $hashString" + if (appendNewline) "\n" else ""
     }
 
     protected fun StringBuilder.sectionHeader(name: String) {
@@ -157,23 +166,8 @@ abstract class WriteDependencySet : DefaultTask() {
         append(SECTION_END)
     }
 
-    private fun deps(c: ResolvedComponentResult): List<ResolvedDependencyResult> {
-        val set = mutableSetOf<ResolvedDependencyResult>()
-        set.addFrom(c.dependencies)
-        return set.associateBy { it.resolvedVariant.owner.displayName }
-            .map { it.value }
-            .sortedBy { it.resolvedVariant.owner.displayName }
-    }
-
-    private fun MutableSet<ResolvedDependencyResult>.addFrom(dependencies: Set<DependencyResult>) {
-        for (dependency in dependencies) {
-            dependency as ResolvedDependencyResult
-            if (dependency.resolvedVariant.attributes.toString().contains("org.gradle.category=platform")) {
-                continue
-            }
-            add(dependency)
-
-            addFrom(dependency.selected.dependencies)
-        }
-    }
+    protected fun Provider<Set<ResolvedArtifactResult>>.sorted(): List<ResolvedArtifactResult> = get().sortedWith(
+        Comparator.comparing<ResolvedArtifactResult, String> { it.id.componentIdentifier.displayName }
+            .thenComparing(Function { it.file.name })
+    )
 }
