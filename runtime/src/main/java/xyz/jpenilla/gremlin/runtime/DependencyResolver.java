@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -132,7 +131,11 @@ public final class DependencyResolver implements AutoCloseable {
 
                 Path in = resolve;
                 for (final Map.Entry<String, JarProcessor> e : processors.entrySet()) {
-                    final Path out = resolve.resolveSibling(resolve.getFileName().toString().replace(".jar", "-" + e.getKey() + ".jar"));
+                    String outputName = resolve.getFileName().toString().replace(".jar", "-" + e.getKey() + ".jar");
+                    if (e.getValue().cacheKey() != null) {
+                        outputName = outputName.replace(".jar", "-" + e.getValue().cacheKey() + ".jar");
+                    }
+                    final Path out = resolve.resolveSibling(outputName);
                     if (Files.isRegularFile(out)) {
                         writeLastUsed(out);
                         in = out;
@@ -153,7 +156,7 @@ public final class DependencyResolver implements AutoCloseable {
             return null;
         }).toList();
 
-        this.executeTasks(executor, tasks);
+        executeTasks(executor, tasks);
 
         Util.shutdownExecutor(executor, TimeUnit.MILLISECONDS, 50L);
 
@@ -174,6 +177,18 @@ public final class DependencyResolver implements AutoCloseable {
         }
 
         private record IsolatedProcessor(Object processor) implements JarProcessor {
+            @Override
+            public @Nullable String cacheKey() {
+                try {
+                    final Method mth = this.processor.getClass().getDeclaredMethod("cacheKey");
+                    return (String) mth.invoke(this.processor);
+                } catch (final InvocationTargetException e) {
+                    throw Util.rethrow(e.getCause());
+                } catch (final ReflectiveOperationException e) {
+                    throw Util.rethrow(e);
+                }
+            }
+
             @Override
             public void process(final Path input, final Path output) {
                 try {
@@ -229,8 +244,8 @@ public final class DependencyResolver implements AutoCloseable {
                         throw Util.rethrow(ex);
                     }
                 }).toList();
-                this.executeTasks(executor, tasks);
-                depPaths.add(currentClasspathURL(ext.getClass()));
+                executeTasks(executor, tasks);
+                depPaths.add(Util.classpathUrl(ext.getClass()));
 
                 final var loader = new URLClassLoader(depPaths.toArray(URL[]::new), ext.getClass().getClassLoader()) {
                     Class<?> load(final String name) throws ClassNotFoundException {
@@ -251,24 +266,7 @@ public final class DependencyResolver implements AutoCloseable {
         return processors;
     }
 
-    private static URL currentClasspathURL(final Class<?> cls) {
-        try {
-            URL sourceUrl = cls.getProtectionDomain().getCodeSource().getLocation();
-            // Some class loaders give the full url to the class, some give the URL to its jar.
-            // We want the containing jar, so we will unwrap jar-schema code sources.
-            if (sourceUrl.getProtocol().equals("jar")) {
-                final int exclamationIdx = sourceUrl.getPath().lastIndexOf('!');
-                if (exclamationIdx != -1) {
-                    sourceUrl = new URL(sourceUrl.getPath().substring(0, exclamationIdx));
-                }
-            }
-            return sourceUrl;
-        } catch (final MalformedURLException ex) {
-            throw new RuntimeException("Could not locate classpath", ex);
-        }
-    }
-
-    private void executeTasks(final ExecutorService executor, final List<Callable<Void>> tasks) {
+    private static void executeTasks(final ExecutorService executor, final List<Callable<Void>> tasks) {
         try {
             final List<Future<Void>> result = executor.invokeAll(tasks, 10, TimeUnit.MINUTES);
             @Nullable RuntimeException err = null;
@@ -279,7 +277,11 @@ public final class DependencyResolver implements AutoCloseable {
                     if (err == null) {
                         err = new RuntimeException("Exception(s) resolving dependencies");
                     }
-                    err.addSuppressed(e);
+                    if (e instanceof ExecutionException) {
+                        err.addSuppressed(e.getCause());
+                    } else {
+                        err.addSuppressed(e);
+                    }
                 }
             }
             if (err != null) {
@@ -323,11 +325,11 @@ public final class DependencyResolver implements AutoCloseable {
                     .header(USER_AGENT_HEADER, USER_AGENT)
                     .build();
             } catch (final URISyntaxException e) {
-                throw new RuntimeException(e);
+                throw Util.rethrow(e);
             }
             final HttpResponse<Path> response;
             try {
-                //this.logger.info("attempting to download " + urlString);
+                this.logger.debug("Attempting download " + urlString);
                 response = this.client.send(request, HttpResponse.BodyHandlers.ofFile(
                     Util.mkParentDirs(outputFile),
                     StandardOpenOption.TRUNCATE_EXISTING,
@@ -338,15 +340,15 @@ public final class DependencyResolver implements AutoCloseable {
                 throw Util.rethrow(e);
             }
             if (response == null || response.statusCode() != 200) {
-                //this.logger.info("Download " + urlString + " failed");
+                this.logger.debug("Failed to download {}: {}", urlString, response == null ? "null response" : "response code " + response.statusCode());
                 continue;
             }
-            //this.logger.info("Download " + urlString + " success");
+            this.logger.debug("Successfully downloaded {}", urlString);
             resolved = response.body();
             break;
         }
         if (resolved == null) {
-            throw new IllegalStateException(String.format("Could not resolve dependency %s from any of %s", dependency, repositories));
+            throw new IllegalStateException("Could not resolve %s from any of %s".formatted(dependency, repositories));
         }
         if (!checkHash(dependency, resolved)) {
             throw new IllegalStateException("Hash for downloaded file %s was incorrect (expected: %s, got: %s)".formatted(resolved, dependency.sha256(), HashingAlgorithm.SHA256.hashFile(resolved).asHexString()));
@@ -396,17 +398,17 @@ public final class DependencyResolver implements AutoCloseable {
     private ExecutorService makeExecutor() {
         return Executors.newFixedThreadPool(
             Math.min(4, Runtime.getRuntime().availableProcessors()),
-            new DownloaderThreadFactory(this.logger)
+            new ResolverThreadFactory(this.logger)
         );
     }
 
-    private static final class DownloaderThreadFactory implements ThreadFactory {
+    private static final class ResolverThreadFactory implements ThreadFactory {
         private static final AtomicInteger poolNumber = new AtomicInteger(1);
         private final AtomicInteger threadNumber = new AtomicInteger(1);
         private final String namePrefix;
         private final Logger logger;
 
-        DownloaderThreadFactory(final Logger logger) {
+        ResolverThreadFactory(final Logger logger) {
             this.namePrefix = DependencyResolver.class.getSimpleName() + "-pool-" + poolNumber.getAndIncrement() + "-thread-";
             this.logger = logger;
         }
