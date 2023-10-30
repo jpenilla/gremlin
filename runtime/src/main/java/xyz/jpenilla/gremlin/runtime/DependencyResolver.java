@@ -30,6 +30,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -38,6 +40,8 @@ import xyz.jpenilla.gremlin.runtime.util.Util;
 
 @NullMarked
 public final class DependencyResolver implements AutoCloseable {
+    @SuppressWarnings("RegExpUnnecessaryNonCapturingGroup")
+    private static final Pattern UNIQUE_SNAPSHOT = Pattern.compile("(?:.+)-(\\d{8}\\.\\d{6}-\\d+)");
     private static final String USER_AGENT_HEADER = "User-Agent";
     private static final String USER_AGENT = "gremlin";
 
@@ -292,7 +296,7 @@ public final class DependencyResolver implements AutoCloseable {
             "%s/%s/%s/%s-%s%s.jar",
             dependency.group().replace('.', '/'),
             dependency.name(),
-            dependency.version(),
+            nonUniqueSnapshotIfSnapshot(dependency.version()),
             dependency.name(),
             dependency.version(),
             dependency.classifier() == null ? "" : '-' + dependency.classifier()
@@ -349,6 +353,15 @@ public final class DependencyResolver implements AutoCloseable {
         }
         writeLastUsed(resolved);
         return resolved;
+    }
+
+    private static String nonUniqueSnapshotIfSnapshot(final String version) {
+        final Matcher matcher = UNIQUE_SNAPSHOT.matcher(version);
+        if (matcher.matches()) {
+            final String timestamp = matcher.group(1);
+            return version.replace(timestamp, "SNAPSHOT");
+        }
+        return version;
     }
 
     private static void writeLastUsed(final Path f) {
