@@ -17,7 +17,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -361,15 +360,10 @@ public final class DependencyResolver implements AutoCloseable {
 
     private static FileWithHashes withHashes(final Path file) throws IOException {
         final var hashes = MULTI_HASHER.hashFile(file);
-        return new FileWithHashes(file, hashes.get(HashingAlgorithm.SHA256), hashes.get(HashingAlgorithm.SHA1));
+        return new FileWithHashes(file, hashes.hash(HashingAlgorithm.SHA256), hashes.hash(HashingAlgorithm.SHA1));
     }
 
-    private record FileWithHashes(Path path, HashResult sha256, HashResult sha1) {
-        FileWithHashes {
-            Objects.requireNonNull(sha256, "SHA-256 hash must not be null");
-            Objects.requireNonNull(sha1, "SHA-1 hash must not be null");
-        }
-    }
+    private record FileWithHashes(Path path, HashResult sha256, HashResult sha1) {}
 
     private static String nonUniqueSnapshotIfSnapshot(final String version) {
         final Matcher matcher = UNIQUE_SNAPSHOT.matcher(version);
