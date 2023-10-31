@@ -73,14 +73,22 @@ public final class DependencyResolver implements AutoCloseable {
             throw new IllegalStateException("Cannot close while resolving");
         }
         this.closed = true;
+        @Nullable Exception e = null;
         for (final ClassLoaderIsolatedJarProcessorProvider provider : this.isolatedProcessorProviders.values()) {
             try {
                 provider.loader().close();
-            } catch (final Exception e) {
-                throw Util.rethrow(e);
+            } catch (final Exception ex) {
+                if (e == null) {
+                    e = ex;
+                } else {
+                    e.addSuppressed(ex);
+                }
             }
         }
         this.isolatedProcessorProviders.clear();
+        if (e != null) {
+            throw Util.rethrow(e);
+        }
     }
 
     public ResolvedDependencySet resolve(final DependencySet dependencySet, final DependencyCache cache) {
