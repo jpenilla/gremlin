@@ -21,8 +21,8 @@ indraPluginPublishing {
         "gremlin-gradle",
         "xyz.jpenilla.gremlin.gradle.GremlinPlugin",
         "Gremlin",
-        "Export dependency sets to be resolved by gremlin-runtime",
-        listOf()
+        "Export dependency sets to be resolved by xyz.jpenilla:gremlin-runtime",
+        listOf("dependency", "gremlin")
     )
 }
 
@@ -34,6 +34,13 @@ indra {
     javaVersions {
         target(11)
         strictVersions(true)
+    }
+}
+
+publishing {
+    repositories.maven("https://repo.jpenilla.xyz/snapshots/") {
+        name = "jmp"
+        credentials(PasswordCredentials::class)
     }
 }
 
