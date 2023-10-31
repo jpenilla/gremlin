@@ -6,8 +6,6 @@ import java.util.List;
 import me.lucko.jarrelocator.JarRelocator;
 import me.lucko.jarrelocator.Relocation;
 import org.jspecify.annotations.NullMarked;
-import xyz.jpenilla.gremlin.runtime.util.HashingAlgorithm;
-import xyz.jpenilla.gremlin.runtime.util.Util;
 
 @NullMarked
 public final class RelocationProcessor implements JarProcessor {
@@ -25,14 +23,10 @@ public final class RelocationProcessor implements JarProcessor {
             return new Relocation(split[0], split[1]);
         }).toList();
 
-        try {
-            // Only include relocations in cache key, we assume that changes to the classpath/deps will mainly
-            // be ASM updates for new Java versions, in which case any relocation that would have a different
-            // outcome would have previously failed and will run again anyway.
-            this.cacheKey = HashingAlgorithm.SHA1.hashString(String.join(";", sorted)).asHexString();
-        } catch (final IOException e) {
-            throw Util.rethrow(e);
-        }
+        // Only include relocations in cache key, we assume that changes to the classpath/deps will mainly
+        // be ASM updates for new Java versions, in which case any relocation that would have a different
+        // outcome would have previously failed and will run again anyway.
+        this.cacheKey = String.join(";", sorted);
     }
 
     @Override

@@ -31,32 +31,22 @@ public enum HashingAlgorithm {
     }
 
     public HashResult hashFile(final Path file) throws IOException {
-        return calculateHash(Files.newInputStream(file), this.digest());
+        return this.hash(Files.newInputStream(file));
     }
 
     public HashResult hashString(final String s) throws IOException {
-        return calculateHash(new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8)), this.digest());
+        return this.hash(new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8)));
     }
 
-    public record HashResult(byte[] bytes) {
-        public String asHexString() {
-            return asHexString(this.bytes);
-        }
-
-        private static String asHexString(final byte[] bytes) {
-            final StringBuilder sb = new StringBuilder(bytes.length * 2);
-            for (final byte b : bytes) {
-                sb.append("%02x".formatted(b & 0xFF));
-            }
-            return sb.toString();
-        }
+    public HashResult hash(final InputStream stream) throws IOException {
+        return calculateHash(stream, this.digest());
     }
 
     @SuppressWarnings("StatementWithEmptyBody")
     private static HashResult calculateHash(final InputStream inputStream, final MessageDigest digest) throws IOException {
         final DigestInputStream stream = new DigestInputStream(inputStream, digest);
         try (stream) {
-            final byte[] buffer = new byte[1024];
+            final byte[] buffer = new byte[8192];
             while (stream.read(buffer) != -1) {
                 // reading
             }

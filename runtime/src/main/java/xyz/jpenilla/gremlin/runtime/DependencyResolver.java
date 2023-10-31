@@ -17,6 +17,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,11 +35,14 @@ import java.util.regex.Pattern;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
+import xyz.jpenilla.gremlin.runtime.util.HashResult;
 import xyz.jpenilla.gremlin.runtime.util.HashingAlgorithm;
+import xyz.jpenilla.gremlin.runtime.util.MultiAlgorithmHasher;
 import xyz.jpenilla.gremlin.runtime.util.Util;
 
 @NullMarked
 public final class DependencyResolver implements AutoCloseable {
+    private static final MultiAlgorithmHasher MULTI_HASHER = new MultiAlgorithmHasher(HashingAlgorithm.SHA1, HashingAlgorithm.SHA256);
     @SuppressWarnings("RegExpUnnecessaryNonCapturingGroup")
     private static final Pattern UNIQUE_SNAPSHOT = Pattern.compile("(?:.+)-(\\d{8}\\.\\d{6}-\\d+)");
     private static final String USER_AGENT_HEADER = "User-Agent";
@@ -124,32 +128,14 @@ public final class DependencyResolver implements AutoCloseable {
 
         final List<Callable<Void>> tasks = dependencySet.dependencies().stream().map(dep -> (Callable<Void>) () -> {
             try {
-                final Path resolve = this.resolve(dep, dependencySet.repositories(), cache, doingWork);
-                if (!resolve.getFileName().toString().endsWith(".jar")) {
+                final FileWithHashes resolve = this.resolve(dep, dependencySet.repositories(), cache, doingWork);
+                if (!resolve.path().getFileName().toString().endsWith(".jar")) {
                     return null;
                 }
 
-                Path in = resolve;
-                for (final Map.Entry<String, JarProcessor> e : processors.entrySet()) {
-                    String outputName = resolve.getFileName().toString().replace(".jar", "-" + e.getKey() + ".jar");
-                    if (e.getValue().cacheKey() != null) {
-                        outputName = outputName.replace(".jar", "-" + e.getValue().cacheKey() + ".jar");
-                    }
-                    final Path out = resolve.resolveSibling(outputName);
-                    if (Files.isRegularFile(out)) {
-                        writeLastUsed(out);
-                        in = out;
-                        continue;
-                    }
-                    doingWork.run();
-                    final Path outTmp = out.resolveSibling(out.getFileName().toString() + ".tmp");
-                    Files.deleteIfExists(outTmp);
-                    e.getValue().process(in, outTmp);
-                    Files.move(outTmp, out);
-                    writeLastUsed(out);
-                    in = out;
-                }
-                resolved.put(dep, in);
+                final Path processed = processJar(resolve, processors, doingWork);
+
+                resolved.put(dep, processed);
             } catch (final IOException | IllegalArgumentException e) {
                 throw new RuntimeException("Exception resolving " + dep, e);
             }
@@ -167,40 +153,51 @@ public final class DependencyResolver implements AutoCloseable {
         return new ResolvedDependencySet(Map.copyOf(resolved));
     }
 
-    private record ClassLoaderIsolatedJarProcessorProvider(URLClassLoader loader, Constructor<?> processorConstructor) {
-        JarProcessor processor(final Object config) {
-            try {
-                return new IsolatedProcessor(this.processorConstructor.newInstance(config));
-            } catch (final Exception e) {
-                throw Util.rethrow(e);
+    private static Path processJar(
+        final FileWithHashes resolved,
+        final Map<String, JarProcessor> processors,
+        final Runnable doingWork
+    ) throws IOException {
+        final Path jarPath = resolved.path();
+
+        Path in = jarPath;
+
+        for (final Map.Entry<String, JarProcessor> processorEntry : processors.entrySet()) {
+            final String extName = processorEntry.getKey();
+            final JarProcessor processor = processorEntry.getValue();
+
+            final String postfix = extName + '-' + cacheKey(processor, in, resolved);
+            final String outputName = jarPath.getFileName().toString().replace(".jar", '-' + postfix + ".jar");
+            final Path out = jarPath.resolveSibling(outputName);
+
+            if (Files.isRegularFile(out)) {
+                writeLastUsed(out);
+                in = out;
+                continue;
             }
+
+            doingWork.run();
+            final Path outTmp = out.resolveSibling(out.getFileName().toString() + ".tmp");
+            Files.deleteIfExists(outTmp);
+            processor.process(in, outTmp);
+            Files.move(outTmp, out);
+            writeLastUsed(out);
+            in = out;
         }
 
-        private record IsolatedProcessor(Object processor) implements JarProcessor {
-            @Override
-            public @Nullable String cacheKey() {
-                try {
-                    final Method mth = this.processor.getClass().getDeclaredMethod("cacheKey");
-                    return (String) mth.invoke(this.processor);
-                } catch (final InvocationTargetException e) {
-                    throw Util.rethrow(e.getCause());
-                } catch (final ReflectiveOperationException e) {
-                    throw Util.rethrow(e);
-                }
-            }
+        return in;
+    }
 
-            @Override
-            public void process(final Path input, final Path output) {
-                try {
-                    final Method mth = this.processor.getClass().getDeclaredMethod("process", Path.class, Path.class);
-                    mth.invoke(this.processor, input, output);
-                } catch (final InvocationTargetException e) {
-                    throw Util.rethrow(e.getCause());
-                } catch (final ReflectiveOperationException e) {
-                    throw Util.rethrow(e);
-                }
-            }
+    private static String cacheKey(final JarProcessor processor, final Path input, final FileWithHashes resolved) throws IOException {
+        final String inputHash = input.toAbsolutePath().equals(resolved.path().toAbsolutePath())
+            ? resolved.sha1().asHexString()
+            : HashingAlgorithm.SHA1.hashFile(input).asHexString();
+        final @Nullable String processorKey = processor.cacheKey();
+        if (processorKey == null) {
+            return inputHash;
         }
+        final String processorKeyHash = HashingAlgorithm.SHA1.hashString(processorKey).asHexString();
+        return HashingAlgorithm.SHA1.hashString(processorKeyHash + inputHash).asHexString();
     }
 
     private Map<String, JarProcessor> createJarProcessors(
@@ -238,7 +235,7 @@ public final class DependencyResolver implements AutoCloseable {
                 final List<URL> depPaths = new CopyOnWriteArrayList<>();
                 final List<Callable<Void>> tasks = deps.stream().map(dep -> (Callable<Void>) () -> {
                     try {
-                        depPaths.add(this.resolve(dep, dependencySet.repositories(), extensionDependencyCache, attemptingDownloadCallback).toUri().toURL());
+                        depPaths.add(this.resolve(dep, dependencySet.repositories(), extensionDependencyCache, attemptingDownloadCallback).path().toUri().toURL());
                         return null;
                     } catch (final IOException ex) {
                         throw Util.rethrow(ex);
@@ -292,7 +289,7 @@ public final class DependencyResolver implements AutoCloseable {
         }
     }
 
-    private Path resolve(final Dependency dependency, final List<String> repositories, final DependencyCache cache, final Runnable attemptingDownloadCallback) throws IOException {
+    private FileWithHashes resolve(final Dependency dependency, final List<String> repositories, final DependencyCache cache, final Runnable attemptingDownloadCallback) throws IOException {
         @Nullable Path resolved = null;
         final String mavenArtifactPath = String.format(
             "%s/%s/%s/%s-%s%s.jar",
@@ -305,9 +302,10 @@ public final class DependencyResolver implements AutoCloseable {
         );
         final Path outputFile = cache.cacheDirectory().resolve(mavenArtifactPath);
         if (Files.exists(outputFile)) {
-            if (checkHash(dependency, outputFile)) {
+            final FileWithHashes result = withHashes(outputFile);
+            if (dependency.sha256().equalsIgnoreCase(result.sha256().asHexString())) {
                 writeLastUsed(outputFile);
-                return outputFile;
+                return result;
             }
             Files.delete(outputFile);
         }
@@ -350,11 +348,27 @@ public final class DependencyResolver implements AutoCloseable {
         if (resolved == null) {
             throw new IllegalStateException("Could not resolve %s from any of %s".formatted(dependency, repositories));
         }
-        if (!checkHash(dependency, resolved)) {
-            throw new IllegalStateException("Hash for downloaded file %s was incorrect (expected: %s, got: %s)".formatted(resolved, dependency.sha256(), HashingAlgorithm.SHA256.hashFile(resolved).asHexString()));
+
+        final FileWithHashes result = withHashes(resolved);
+
+        if (!dependency.sha256().equalsIgnoreCase(result.sha256().asHexString())) {
+            throw new IllegalStateException("Hash for downloaded file %s was incorrect (expected: %s, got: %s)".formatted(resolved, dependency.sha256(), result.sha256().asHexString()));
         }
+
         writeLastUsed(resolved);
-        return resolved;
+        return result;
+    }
+
+    private static FileWithHashes withHashes(final Path file) throws IOException {
+        final var hashes = MULTI_HASHER.hashFile(file);
+        return new FileWithHashes(file, hashes.get(HashingAlgorithm.SHA256), hashes.get(HashingAlgorithm.SHA1));
+    }
+
+    private record FileWithHashes(Path path, HashResult sha256, HashResult sha1) {
+        FileWithHashes {
+            Objects.requireNonNull(sha256, "SHA-256 hash must not be null");
+            Objects.requireNonNull(sha1, "SHA-1 hash must not be null");
+        }
     }
 
     private static String nonUniqueSnapshotIfSnapshot(final String version) {
@@ -391,15 +405,47 @@ public final class DependencyResolver implements AutoCloseable {
         }
     }
 
-    private static boolean checkHash(final Dependency dependency, final Path resolved) throws IOException {
-        return HashingAlgorithm.SHA256.hashFile(resolved).asHexString().equalsIgnoreCase(dependency.sha256());
-    }
-
     private ExecutorService makeExecutor() {
         return Executors.newFixedThreadPool(
             Math.min(4, Runtime.getRuntime().availableProcessors()),
             new ResolverThreadFactory(this.logger)
         );
+    }
+
+    private record ClassLoaderIsolatedJarProcessorProvider(URLClassLoader loader, Constructor<?> processorConstructor) {
+        JarProcessor processor(final Object config) {
+            try {
+                return new IsolatedProcessor(this.processorConstructor.newInstance(config));
+            } catch (final Exception e) {
+                throw Util.rethrow(e);
+            }
+        }
+
+        private record IsolatedProcessor(Object processor) implements JarProcessor {
+            @Override
+            public @Nullable String cacheKey() {
+                try {
+                    final Method mth = this.processor.getClass().getDeclaredMethod("cacheKey");
+                    return (String) mth.invoke(this.processor);
+                } catch (final InvocationTargetException e) {
+                    throw Util.rethrow(e.getCause());
+                } catch (final ReflectiveOperationException e) {
+                    throw Util.rethrow(e);
+                }
+            }
+
+            @Override
+            public void process(final Path input, final Path output) {
+                try {
+                    final Method mth = this.processor.getClass().getDeclaredMethod("process", Path.class, Path.class);
+                    mth.invoke(this.processor, input, output);
+                } catch (final InvocationTargetException e) {
+                    throw Util.rethrow(e.getCause());
+                } catch (final ReflectiveOperationException e) {
+                    throw Util.rethrow(e);
+                }
+            }
+        }
     }
 
     private static final class ResolverThreadFactory implements ThreadFactory {
