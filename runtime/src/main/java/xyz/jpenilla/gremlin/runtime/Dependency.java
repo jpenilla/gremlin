@@ -5,7 +5,7 @@ import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
 @NullMarked
-record Dependency(
+public record Dependency(
     String group,
     String name,
     String version,

@@ -24,7 +24,7 @@ public final class DefaultsPaperPluginLoader implements PluginLoader {
         final DependencySet deps = DependencySet.readDefault(this.getClass().getClassLoader());
         final DependencyCache cache = new DependencyCache(classpath.getContext().getDataDirectory().resolve("libraries"));
         try (final DependencyResolver downloader = new DependencyResolver(classpath.getContext().getLogger())) {
-            new PaperClasspathAppender(classpath).append(downloader.resolve(deps, cache).files());
+            new PaperClasspathAppender(classpath).append(downloader.resolve(deps, cache).jarFiles());
         }
         cache.cleanup();
     }
