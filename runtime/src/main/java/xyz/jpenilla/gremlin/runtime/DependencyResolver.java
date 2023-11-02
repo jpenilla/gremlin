@@ -137,6 +137,7 @@ public final class DependencyResolver implements AutoCloseable {
             try {
                 final FileWithHashes resolve = this.resolve(dep, dependencySet.repositories(), cache, doingWork);
                 if (!resolve.path().getFileName().toString().endsWith(".jar")) {
+                    resolved.put(dep, resolve.path());
                     return null;
                 }
 
@@ -222,7 +223,7 @@ public final class DependencyResolver implements AutoCloseable {
                 continue;
             }
 
-            final List<Dependency> deps = ext.dependencies(state);
+            final List<Dependency> deps = Util.sorted(ext.dependencies(state));
 
             if (deps.isEmpty()) {
                 try {
@@ -238,7 +239,7 @@ public final class DependencyResolver implements AutoCloseable {
                 continue;
             }
 
-            final ClassLoaderIsolatedJarProcessorProvider provider = this.isolatedProcessorProviders.computeIfAbsent(ext.getClass().getName() + ":" + ext.processorName(), $ -> {
+            final ClassLoaderIsolatedJarProcessorProvider provider = this.isolatedProcessorProviders.computeIfAbsent(isolatedProcessorProviderKey(ext, deps), $ -> {
                 final List<URL> depPaths = new CopyOnWriteArrayList<>();
                 final List<Callable<Void>> tasks = deps.stream().map(dep -> (Callable<Void>) () -> {
                     try {
@@ -270,6 +271,10 @@ public final class DependencyResolver implements AutoCloseable {
         return processors;
     }
 
+    private static String isolatedProcessorProviderKey(final Extension<Object> ext, final List<Dependency> deps) {
+        return ext.getClass().getName() + ':' + ext.processorName() + ':' + deps.hashCode();
+    }
+
     private static void executeTasks(final ExecutorService executor, final List<Callable<Void>> tasks) {
         try {
             final List<Future<Void>> result = executor.invokeAll(tasks, 10, TimeUnit.MINUTES);
@@ -299,13 +304,14 @@ public final class DependencyResolver implements AutoCloseable {
     private FileWithHashes resolve(final Dependency dependency, final List<String> repositories, final DependencyCache cache, final Runnable attemptingDownloadCallback) throws IOException {
         @Nullable Path resolved = null;
         final String mavenArtifactPath = String.format(
-            "%s/%s/%s/%s-%s%s.jar",
+            "%s/%s/%s/%s-%s%s.%s",
             dependency.group().replace('.', '/'),
             dependency.name(),
             nonUniqueSnapshotIfSnapshot(dependency.version()),
             dependency.name(),
             dependency.version(),
-            dependency.classifier() == null ? "" : '-' + dependency.classifier()
+            dependency.classifier() == null ? "" : '-' + dependency.classifier(),
+            dependency.extension() == null ? "jar" : dependency.extension()
         );
         final Path outputFile = cache.cacheDirectory().resolve(mavenArtifactPath);
         if (Files.exists(outputFile)) {

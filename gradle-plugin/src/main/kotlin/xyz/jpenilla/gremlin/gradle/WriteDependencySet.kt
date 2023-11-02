@@ -1,6 +1,8 @@
 package xyz.jpenilla.gremlin.gradle
 
 import org.gradle.api.DefaultTask
+import org.gradle.api.Named
+import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
@@ -15,6 +17,7 @@ import org.gradle.api.provider.SetProperty
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.Nested
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
@@ -51,11 +54,28 @@ abstract class WriteDependencySet : DefaultTask() {
     @get:Input
     abstract val repos: ListProperty<String>
 
-    @get:Input
-    abstract val relocations: ListProperty<String>
+    @get:Nested
+    abstract val relocations: NamedDomainObjectContainer<Relocation>
 
     @get:Inject
     abstract val layout: ProjectLayout
+
+    interface Relocation : Named {
+        @Input
+        override fun getName(): String
+
+        @get:Input
+        val from: Property<String>
+
+        @get:Input
+        val to: Property<String>
+
+        @get:Input
+        val includes: SetProperty<String>
+
+        @get:Input
+        val excludes: SetProperty<String>
+    }
 
     init {
         init()
@@ -65,9 +85,13 @@ abstract class WriteDependencySet : DefaultTask() {
         outputDir.convention(layout.buildDirectory.dir("generated/gremlin/$name"))
     }
 
-    fun relocate(from: String, to: String) {
-        relocations.add("$from $to")
-    }
+    @JvmOverloads
+    fun relocate(from: String, to: String, configure: Relocation.() -> Unit = {}): Relocation =
+        relocations.create(relocations.size.toString()) {
+            this.from.set(from)
+            this.to.set(to)
+            configure()
+        }
 
     fun configuration(configuration: Configuration) {
         artifacts.set(configuration.incoming.artifacts)
@@ -110,15 +134,22 @@ abstract class WriteDependencySet : DefaultTask() {
         }
         out.sectionEnd()
 
-        if (relocations.isPresent && relocations.get().isNotEmpty()) {
+        if (relocations.isNotEmpty()) {
             out.sectionHeader("relocation")
 
             for (dependency in relocArtifacts.sorted()) {
                 out.append("dep ").append(dependencyLine(dependency))
             }
 
-            for (r in relocations.get().sorted()) {
-                out.append(r).append("\n")
+            for (r in relocations) {
+                out.append(r.from.get()).append(' ').append(r.to.get())
+                for (inc in r.includes.get()) {
+                    out.append(' ').append(':').append(inc)
+                }
+                for (exc in r.excludes.get()) {
+                    out.append(' ').append('-').append(exc)
+                }
+                out.append("\n")
             }
 
             out.sectionEnd()
@@ -143,6 +174,7 @@ abstract class WriteDependencySet : DefaultTask() {
             else -> return ""
         }
         val classifier = ivyName?.classifier?.takeIf { it.isNotBlank() }
+        val ext = ivyName?.extension?.takeIf { it.isNotBlank() && it != "jar" }
 
         var notation = if (componentId is MavenUniqueSnapshotComponentIdentifier) {
             "${componentId.group}:${componentId.module}:${componentId.timestampedVersion}"
@@ -151,6 +183,9 @@ abstract class WriteDependencySet : DefaultTask() {
         }
         if (classifier != null) {
             notation = "$notation:$classifier"
+        }
+        if (ext != null) {
+            notation = "$notation@$ext"
         }
 
         val hashString = artifact.file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()

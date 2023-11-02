@@ -6,6 +6,10 @@ import java.net.URL;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.jspecify.annotations.NullMarked;
@@ -71,5 +75,11 @@ public class Util {
         } catch (final MalformedURLException ex) {
             throw new RuntimeException("Could not locate classpath of " + cls.getName(), ex);
         }
+    }
+
+    public static <T extends Comparable<T>> List<T> sorted(final Collection<T> list) {
+        final List<T> sorted = new ArrayList<>(list);
+        sorted.sort(null);
+        return Collections.unmodifiableList(sorted);
     }
 }

@@ -2,7 +2,9 @@ package xyz.jpenilla.gremlin.runtime;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import me.lucko.jarrelocator.JarRelocator;
 import me.lucko.jarrelocator.Relocation;
 import org.jspecify.annotations.NullMarked;
@@ -16,17 +18,30 @@ public final class RelocationProcessor implements JarProcessor {
         if (config.relocations().isEmpty()) {
             throw new IllegalStateException(this.getClass().getSimpleName() + " created without any relocations");
         }
-        final List<String> sorted = config.relocations().stream().sorted().toList();
 
-        this.relocations = sorted.stream().map(line -> {
+        this.relocations = config.relocations().stream().map(line -> {
             final String[] split = line.split(" ");
-            return new Relocation(split[0], split[1]);
+
+            final Set<String> includes = new HashSet<>();
+            final Set<String> excludes = new HashSet<>();
+            if (split.length > 2) {
+                for (int i = 2; i < split.length; i++) {
+                    final String includeOrExclude = split[i];
+                    switch (includeOrExclude.charAt(0)) {
+                        case ':' -> includes.add(includeOrExclude.substring(1));
+                        case '-' -> excludes.add(includeOrExclude.substring(1));
+                        default -> throw new IllegalStateException("Invalid relocation '" + line + "'");
+                    }
+                }
+            }
+
+            return new Relocation(split[0], split[1], includes, excludes);
         }).toList();
 
         // Only include relocations in cache key, we assume that changes to the classpath/deps will mainly
         // be ASM updates for new Java versions, in which case any relocation that would have a different
         // outcome would have previously failed and will run again anyway.
-        this.cacheKey = String.join(";", sorted);
+        this.cacheKey = String.join(";", config.relocations());
     }
 
     @Override
