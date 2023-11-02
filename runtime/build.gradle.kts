@@ -20,3 +20,18 @@ indra {
         target(17)
     }
 }
+
+tasks {
+    withType<Jar> {
+        from(rootProject.file("LICENSE")) {
+            rename { "META-INF/LICENSE_${rootProject.name}" }
+        }
+    }
+    jar {
+        manifest {
+            attributes(
+                "Automatic-Module-Name" to "xyz.jpenilla.gremlin.runtime"
+            )
+        }
+    }
+}

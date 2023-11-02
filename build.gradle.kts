@@ -32,6 +32,8 @@ subprojects {
         }
 
         apache2License()
+
+        signWithKeyFromProperties("signingKey", "signingPassword")
     }
 
     extensions.getByType<IndraSpotlessLicenserExtension>().apply {
