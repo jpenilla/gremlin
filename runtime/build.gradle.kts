@@ -2,6 +2,8 @@ plugins {
     id("net.kyori.indra.publishing")
 }
 
+description = "gremlin runtime"
+
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
