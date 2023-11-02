@@ -17,6 +17,7 @@
  */
 package xyz.jpenilla.gremlin.gradle
 
+import org.gradle.api.Action
 import org.gradle.api.DefaultTask
 import org.gradle.api.Named
 import org.gradle.api.NamedDomainObjectContainer
@@ -103,11 +104,11 @@ abstract class WriteDependencySet : DefaultTask() {
     }
 
     @JvmOverloads
-    fun relocate(from: String, to: String, configure: Relocation.() -> Unit = {}): Relocation =
+    fun relocate(from: String, to: String, configure: Action<Relocation>? = null): Relocation =
         relocations.create(relocations.size.toString()) {
             this.from.set(from)
             this.to.set(to)
-            configure()
+            configure?.execute(this)
         }
 
     fun configuration(configuration: Configuration) {
