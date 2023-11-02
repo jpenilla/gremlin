@@ -3,6 +3,7 @@ indra = { id = "net.kyori.indra", version.ref = "indra" }
 indraPublishing = { id = "net.kyori.indra.publishing", version.ref = "indra" }
 indraSonatypePublishing = { id = "net.kyori.indra.publishing.sonatype", version.ref = "indra" }
 indraGradlePublishing = { id = "net.kyori.indra.publishing.gradle-plugin", version.ref = "indra" }
+indraLicenser = { id = "net.kyori.indra.licenser.spotless", version.ref = "indra" }
 gradlePluginPublish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
 blossom = { id = "net.kyori.blossom", version = "2.1.0" }
 
