@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 plugins {
     `java-gradle-plugin`
     `kotlin-dsl`
@@ -11,8 +13,15 @@ repositories {
     gradlePluginPortal()
 }
 
+val jarRelocatorDefaultRuntime: Configuration by configurations.creating {
+    isCanBeResolved = true
+    isCanBeConsumed = false
+}
+
 dependencies {
-    compileOnly("com.github.johnrengelman:shadow:8.1.1")
+    compileOnly(libs.shadow)
+
+    jarRelocatorDefaultRuntime(libs.bundles.jarRelocatorDefaultRuntime)
 }
 
 indraPluginPublishing {
@@ -26,7 +35,7 @@ indraPluginPublishing {
     )
 }
 
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile::class) {
+tasks.withType(KotlinCompile::class) {
     kotlinOptions.jvmTarget = "11"
 }
 
@@ -44,25 +53,12 @@ publishing {
     }
 }
 
-val jarRelocatorDefaultRuntime: Configuration by configurations.creating {
-    isCanBeResolved = true
-    isCanBeConsumed = false
-}
-
-dependencies {
-    jarRelocatorDefaultRuntime(libs.bundles.jarRelocatorDefaultRuntime)
-}
-
-sourceSets {
-    main {
-        blossom {
-            kotlinSources {
-                properties.put("jarRelocatorDefaultRuntime", provider {
-                    jarRelocatorDefaultRuntime.incoming.resolutionResult.root.dependencies
-                        .map { (it as ResolvedDependencyResult).resolvedVariant.owner.displayName }
-                })
-                properties.put("gremlinVer", project.version)
-            }
-        }
+sourceSets.main {
+    blossom.kotlinSources {
+        properties.put("jarRelocatorDefaultRuntime", provider {
+            jarRelocatorDefaultRuntime.incoming.resolutionResult.root.dependencies
+                .map { (it as ResolvedDependencyResult).resolvedVariant.owner.displayName }
+        })
+        properties.put("gremlinVer", project.version)
     }
 }

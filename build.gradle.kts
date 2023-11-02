@@ -24,6 +24,8 @@ subprojects {
             }
         }
 
-        github("jpenilla", "gremlin")
+        github("jpenilla", "gremlin") {
+            ci(true)
+        }
     }
 }

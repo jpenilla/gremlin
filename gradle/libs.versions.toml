@@ -15,6 +15,7 @@ velocityApi = "com.velocitypowered:velocity-api:3.2.0-SNAPSHOT"
 fabricLoader = "net.fabricmc:fabric-loader:0.14.24"
 asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
+shadow = "com.github.johnrengelman:shadow:8.1.1"
 
 [versions]
 indra = "3.1.3"
