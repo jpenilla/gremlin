@@ -24,7 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
-import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import org.jspecify.annotations.NullMarked;
@@ -70,7 +70,7 @@ public final class MultiAlgorithmHasher {
             }
         }
 
-        final HashesMap resultMap = new HashesMapImpl();
+        final HashesMap resultMap = new HashesMapImpl(digests.length);
         for (int i = 0; i < digests.length; i++) {
             final HashingAlgorithm algo = this.algorithms[i];
             final MessageDigest digest = digests[i];
@@ -91,14 +91,14 @@ public final class MultiAlgorithmHasher {
         HashResult hash(HashingAlgorithm algo);
     }
 
-    private static final class HashesMapImpl extends EnumMap<HashingAlgorithm, HashResult> implements HashesMap {
-        HashesMapImpl() {
-            super(HashingAlgorithm.class);
+    private static final class HashesMapImpl extends HashMap<HashingAlgorithm, HashResult> implements HashesMap {
+        HashesMapImpl(final int size) {
+            super(size);
         }
 
         @Override
         public HashResult hash(final HashingAlgorithm algo) {
-            return Objects.requireNonNull(this.get(algo), "Missing " + algo.name() + " hash");
+            return Objects.requireNonNull(this.get(algo), "Missing " + algo.algorithmName() + " hash");
         }
     }
 }

@@ -26,17 +26,16 @@ import java.nio.file.Path;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Objects;
 import org.jspecify.annotations.NullMarked;
 
 @NullMarked
-public enum HashingAlgorithm {
-    SHA1("SHA-1"),
-    SHA256("SHA-256");
+public record HashingAlgorithm(String algorithmName) {
+    public static final HashingAlgorithm SHA1 = new HashingAlgorithm("SHA-1");
+    public static final HashingAlgorithm SHA256 = new HashingAlgorithm("SHA-256");
 
-    private final String algorithmName;
-
-    HashingAlgorithm(final String algorithmName) {
-        this.algorithmName = algorithmName;
+    public HashingAlgorithm {
+        Objects.requireNonNull(algorithmName, "algorithmName must not be null");
     }
 
     public MessageDigest digest() {
