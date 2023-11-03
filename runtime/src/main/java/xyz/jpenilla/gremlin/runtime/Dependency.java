@@ -46,6 +46,9 @@ public record Dependency(
     public static Dependency parse(final String notation, final String sha256) {
         final String[] parts = notation.split(":");
         final String[] extParts = parts[parts.length - 1].split("@");
+        if (extParts.length == 2) {
+            parts[parts.length - 1] = extParts[0];
+        }
 
         return new Dependency(
             parts[0],
