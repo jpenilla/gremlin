@@ -27,7 +27,7 @@ public record Dependency(
     String name,
     String version,
     @Nullable String classifier,
-    @Nullable String extension,
+    String extension,
     String sha256
 ) implements Comparable<Dependency> {
     private static final Comparator<Dependency> COMPARATOR =
@@ -35,7 +35,7 @@ public record Dependency(
             .thenComparing(Dependency::name)
             .thenComparing(Dependency::version)
             .thenComparing(dependency -> dependency.classifier() == null ? "" : dependency.classifier())
-            .thenComparing(dependency -> dependency.extension() == null ? "" : dependency.extension())
+            .thenComparing(Dependency::extension)
             .thenComparing(Dependency::sha256);
 
     @Override
@@ -48,6 +48,8 @@ public record Dependency(
         final String[] extParts = parts[parts.length - 1].split("@");
         if (extParts.length == 2) {
             parts[parts.length - 1] = extParts[0];
+        } else {
+            throw new IllegalArgumentException("Incomplete notation '" + notation + "', missing extension.");
         }
 
         return new Dependency(
@@ -55,7 +57,7 @@ public record Dependency(
             parts[1],
             parts[2],
             parts.length == 4 ? parts[3] : null,
-            extParts.length == 2 ? extParts[1] : null,
+            extParts[1],
             sha256
         );
     }

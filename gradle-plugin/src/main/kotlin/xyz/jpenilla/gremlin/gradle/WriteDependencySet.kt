@@ -191,20 +191,31 @@ abstract class WriteDependencySet : DefaultTask() {
             is ComponentFileArtifactIdentifier -> artifactId.rawFileName as? IvyArtifactName
             else -> return ""
         }
-        val classifier = ivyName?.classifier?.takeIf { it.isNotBlank() }
-        val ext = ivyName?.extension?.takeIf { it.isNotBlank() && it != "jar" }
 
-        var notation = if (componentId is MavenUniqueSnapshotComponentIdentifier) {
-            "${componentId.group}:${componentId.module}:${componentId.timestampedVersion}"
+        val notation = StringBuilder()
+            .append(componentId.group)
+            .append(':')
+            .append(componentId.module)
+            .append(':')
+
+        val version = if (componentId is MavenUniqueSnapshotComponentIdentifier) {
+            componentId.timestampedVersion
         } else {
-            "${componentId.group}:${componentId.module}:${componentId.version}"
+            componentId.version
         }
+
+        notation.append(version)
+
+        val classifier = ivyName?.classifier?.takeIf { it.isNotBlank() }
         if (classifier != null) {
-            notation = "$notation:$classifier"
+            notation.append(':').append(classifier)
         }
-        if (ext != null) {
-            notation = "$notation@$ext"
-        }
+
+        val ext = ivyName?.extension
+            ?: artifact.file.extension.takeIf { it.isNotBlank() }
+            ?: error("File '${artifact.file.absolutePath}' does not have an extension?")
+
+        notation.append('@').append(ext)
 
         val hashString = artifact.file.toPath().hashFile(HashingAlgorithm.SHA256).asHexString()
 

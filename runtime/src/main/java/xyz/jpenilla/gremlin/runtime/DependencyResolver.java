@@ -328,7 +328,7 @@ public final class DependencyResolver implements AutoCloseable {
             dependency.name(),
             dependency.version(),
             dependency.classifier() == null ? "" : '-' + dependency.classifier(),
-            dependency.extension() == null ? "jar" : dependency.extension()
+            dependency.extension()
         );
         final Path outputFile = cache.cacheDirectory().resolve(mavenArtifactPath);
         if (Files.exists(outputFile)) {
