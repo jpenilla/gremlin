@@ -1,21 +1,26 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
+    id("base-conventions")
     `java-gradle-plugin`
     `kotlin-dsl`
-    alias(libs.plugins.indraGradlePublishing)
-    alias(libs.plugins.gradlePluginPublish)
+    alias(libs.plugins.indra.publishing.gradlePlugin)
+    alias(libs.plugins.gradle.pluginPublish)
     alias(libs.plugins.blossom)
-}
-
-repositories {
-    mavenCentral()
-    gradlePluginPortal()
 }
 
 val jarRelocatorDefaultRuntime: Configuration by configurations.creating {
     isCanBeResolved = true
     isCanBeConsumed = false
+}
+
+repositories {
+    mavenCentral {
+        content {
+            onlyForConfigurations(jarRelocatorDefaultRuntime.name)
+        }
+    }
+    gradlePluginPortal()
 }
 
 dependencies {

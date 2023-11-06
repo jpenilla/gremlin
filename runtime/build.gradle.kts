@@ -1,11 +1,10 @@
 plugins {
-    id("net.kyori.indra.publishing")
+    id("runtime-conventions")
 }
 
 description = "gremlin runtime"
 
 repositories {
-    mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
 }
 
@@ -15,25 +14,4 @@ dependencies {
     compileOnlyApi(libs.jspecifyAnnotations)
 
     compileOnly(libs.bundles.platformSupport)
-}
-
-indra {
-    javaVersions {
-        target(17)
-    }
-}
-
-tasks {
-    withType<Jar> {
-        from(rootProject.file("LICENSE")) {
-            rename { "META-INF/LICENSE_${rootProject.name}" }
-        }
-    }
-    jar {
-        manifest {
-            attributes(
-                "Automatic-Module-Name" to "xyz.jpenilla.gremlin.runtime"
-            )
-        }
-    }
 }

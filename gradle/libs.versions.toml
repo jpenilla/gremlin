@@ -1,10 +1,7 @@
 [plugins]
-indra = { id = "net.kyori.indra", version.ref = "indra" }
-indraPublishing = { id = "net.kyori.indra.publishing", version.ref = "indra" }
-indraSonatypePublishing = { id = "net.kyori.indra.publishing.sonatype", version.ref = "indra" }
-indraGradlePublishing = { id = "net.kyori.indra.publishing.gradle-plugin", version.ref = "indra" }
-indraLicenser = { id = "net.kyori.indra.licenser.spotless", version.ref = "indra" }
-gradlePluginPublish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
+indra-publishing-sonatype = { id = "net.kyori.indra.publishing.sonatype", version.ref = "indra" }
+indra-publishing-gradlePlugin = { id = "net.kyori.indra.publishing.gradle-plugin", version.ref = "indra" }
+gradle-pluginPublish = { id = "com.gradle.plugin-publish", version = "1.2.1" }
 blossom = { id = "net.kyori.blossom", version = "2.1.0" }
 
 [libraries]
@@ -17,6 +14,9 @@ fabricLoader = "net.fabricmc:fabric-loader:0.14.24"
 asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
 shadow = "com.github.johnrengelman:shadow:8.1.1"
+
+indra-common = { module = "net.kyori:indra-common", version.ref = "indra" }
+indra-licenser-spotless = { module = "net.kyori:indra-licenser-spotless", version.ref = "indra" }
 
 [versions]
 indra = "3.1.3"
