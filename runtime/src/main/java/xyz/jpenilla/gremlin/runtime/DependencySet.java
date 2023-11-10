@@ -22,11 +22,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 
@@ -90,7 +90,7 @@ public record DependencySet(
     ) throws IOException {
         final List<String> repositories = new ArrayList<>();
         final List<Dependency> dependencies = new ArrayList<>();
-        final Map<String, List<String>> extraSections = new HashMap<>();
+        final Map<String, List<String>> extraSections = new LinkedHashMap<>();
 
         try (final BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
             @Nullable String currentSection = null;
@@ -140,13 +140,15 @@ public record DependencySet(
         final Map<String, Extension<?>> extensions,
         final Map<String, List<String>> extraSections
     ) {
-        return extraSections.entrySet().stream().map(e -> {
-            final @Nullable Extension<?> extension = extensions.get(e.getKey());
+        final Map<String, Object> ret = new LinkedHashMap<>();
+        for (final Map.Entry<String, List<String>> entry : extraSections.entrySet()) {
+            final @Nullable Extension<?> extension = extensions.get(entry.getKey());
             if (extension == null) {
-                throw new IllegalStateException("No such extension '" + e.getKey() + "'");
+                throw new IllegalStateException("No such extension '" + entry.getKey() + "'");
             }
-            return Map.entry(e.getKey(), extension.parseConfig(e.getValue()));
-        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            ret.put(entry.getKey(), extension.parseConfig(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(ret);
     }
 
 }

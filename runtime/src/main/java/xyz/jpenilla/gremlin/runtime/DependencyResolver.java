@@ -31,7 +31,9 @@ import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -231,7 +233,7 @@ public final class DependencyResolver implements AutoCloseable {
         final DependencyCache extensionDependencyCache,
         final Runnable attemptingDownloadCallback
     ) {
-        final Map<String, JarProcessor> processors = new HashMap<>();
+        final Map<String, JarProcessor> processors = new LinkedHashMap<>();
         for (final Map.Entry<String, Extension<?>> entry : dependencySet.extensions().entrySet()) {
             final String extName = entry.getKey();
             @SuppressWarnings("unchecked") final Extension<Object> ext = (Extension<Object>) entry.getValue();
@@ -285,7 +287,7 @@ public final class DependencyResolver implements AutoCloseable {
 
             processors.put(extName, provider.processor(state));
         }
-        return processors;
+        return Collections.unmodifiableMap(processors);
     }
 
     private static String isolatedProcessorProviderKey(final Extension<Object> ext, final List<Dependency> deps) {
