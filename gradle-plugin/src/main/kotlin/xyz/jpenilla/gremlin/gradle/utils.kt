@@ -19,37 +19,44 @@ package xyz.jpenilla.gremlin.gradle
 
 import java.io.InputStream
 import java.nio.file.Path
-import java.security.DigestInputStream
 import java.security.MessageDigest
 import kotlin.io.path.inputStream
 
-enum class HashingAlgorithm(algorithm: String) {
+enum class HashingAlgorithm(val algorithmName: String) {
     SHA256("SHA-256"),
     SHA1("SHA-1");
 
-    private val threadLocalMessageDigest = ThreadLocal.withInitial { MessageDigest.getInstance(algorithm) }
+    private val threadLocalMessageDigest = ThreadLocal.withInitial { createDigest() }
 
-    val digest: MessageDigest
+    fun createDigest(): MessageDigest = MessageDigest.getInstance(algorithmName)
+
+    val threadLocalDigest: MessageDigest
         get() = threadLocalMessageDigest.get()
 }
 
 fun Path.hashFile(algorithm: HashingAlgorithm): ByteArray = inputStream().use { input -> input.hash(algorithm) }
 
-fun InputStream.hash(algorithm: HashingAlgorithm): ByteArray {
-    val digestStream = DigestInputStream(this, algorithm.digest)
-    digestStream.use { stream ->
-        val buffer = ByteArray(1024)
-        while (stream.read(buffer) != -1) {
-            // reading
+fun InputStream.hash(algorithm: HashingAlgorithm, bufferSize: Int = 8192): ByteArray {
+    val digest = algorithm.threadLocalDigest
+    val buffer = ByteArray(bufferSize)
+    while (true) {
+        val count = read(buffer)
+        if (count == -1) {
+            break
         }
+        digest.update(buffer, 0, count)
     }
-    return digestStream.messageDigest.digest()
+    return digest.digest()
 }
 
+private val hexChars = "0123456789abcdef".toCharArray()
+
 fun ByteArray.asHexString(): String {
-    val sb: StringBuilder = StringBuilder(size * 2)
-    for (aHash in this) {
-        sb.append("%02x".format(aHash.toInt() and 0xFF))
+    val chars = CharArray(2 * size)
+    forEachIndexed { i, byte ->
+        val unsigned = byte.toInt() and 0xFF
+        chars[2 * i] = hexChars[unsigned / 16]
+        chars[2 * i + 1] = hexChars[unsigned % 16]
     }
-    return sb.toString()
+    return String(chars)
 }
