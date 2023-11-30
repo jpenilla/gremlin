@@ -99,4 +99,17 @@ public class Util {
         sorted.sort(null);
         return Collections.unmodifiableList(sorted);
     }
+
+    private static final char[] HEX_CHARS = "0123456789abcdef".toCharArray();
+
+    public static String asHexString(final byte[] bytes) {
+        final char[] chars = new char[2 * bytes.length];
+        for (int i = 0; i < bytes.length; i++) {
+            final byte b = bytes[i];
+            final int unsigned = (int) b & 0xFF;
+            chars[2 * i] = HEX_CHARS[unsigned / 16];
+            chars[2 * i + 1] = HEX_CHARS[unsigned % 16];
+        }
+        return new String(chars);
+    }
 }
