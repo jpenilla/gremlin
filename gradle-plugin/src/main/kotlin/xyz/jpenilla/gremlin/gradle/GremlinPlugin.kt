@@ -35,6 +35,7 @@ import org.gradle.kotlin.dsl.getByType
 import org.gradle.kotlin.dsl.invoke
 import org.gradle.kotlin.dsl.named
 import org.gradle.kotlin.dsl.register
+import org.gradle.kotlin.dsl.withType
 
 class GremlinPlugin : Plugin<Project> {
     override fun apply(target: Project) {
@@ -99,10 +100,14 @@ class GremlinPlugin : Plugin<Project> {
     }
 
     private fun Project.defaultRepos(): List<String> {
-        if (repositories.isNotEmpty()) {
-            return repositories.mapNotNull { (it as? MavenArtifactRepository)?.url.toString() }
+        val repositoryHandler = if (repositories.isEmpty()) {
+            settings.dependencyResolutionManagement.repositories
+        } else {
+            repositories
         }
-        return settings.dependencyResolutionManagement.repositories.mapNotNull { (it as? MavenArtifactRepository)?.url.toString() }
+        return repositoryHandler.withType(MavenArtifactRepository::class)
+            .filter { it.url.scheme.equals("http", true) || it.url.scheme.equals("https", true) }
+            .map { it.url.toString() }
     }
 
     private val Project.settings: Settings
