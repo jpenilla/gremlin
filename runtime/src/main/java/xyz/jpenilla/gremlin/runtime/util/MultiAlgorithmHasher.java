@@ -50,7 +50,9 @@ public final class MultiAlgorithmHasher {
     }
 
     public HashesMap hashFile(final Path file) throws IOException {
-        return this.hash(Files.newInputStream(file));
+        try (final InputStream in = Files.newInputStream(file)) {
+            return this.hash(in);
+        }
     }
 
     public HashesMap hash(final InputStream stream) throws IOException {
@@ -59,16 +61,14 @@ public final class MultiAlgorithmHasher {
             digests[i] = this.algorithms[i].digest();
         }
 
-        try (stream) {
-            final byte[] buffer = new byte[8192];
-            while (true) {
-                final int count = stream.read(buffer);
-                if (count == -1) {
-                    break;
-                }
-                for (final MessageDigest digest : digests) {
-                    digest.update(buffer, 0, count);
-                }
+        final byte[] buffer = new byte[8192];
+        while (true) {
+            final int count = stream.read(buffer);
+            if (count == -1) {
+                break;
+            }
+            for (final MessageDigest digest : digests) {
+                digest.update(buffer, 0, count);
             }
         }
 

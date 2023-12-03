@@ -45,7 +45,9 @@ public record HashingAlgorithm(String algorithmName) {
     }
 
     public HashResult hashFile(final Path file) throws IOException {
-        return this.hash(Files.newInputStream(file));
+        try (final InputStream in = Files.newInputStream(file)) {
+            return this.hash(in);
+        }
     }
 
     public HashResult hashString(final String s) {
