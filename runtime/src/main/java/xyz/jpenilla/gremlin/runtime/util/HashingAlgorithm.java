@@ -17,13 +17,11 @@
  */
 package xyz.jpenilla.gremlin.runtime.util;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
@@ -50,23 +48,24 @@ public record HashingAlgorithm(String algorithmName) {
         return this.hash(Files.newInputStream(file));
     }
 
-    public HashResult hashString(final String s) throws IOException {
-        return this.hash(new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8)));
+    public HashResult hashString(final String s) {
+        final byte[] hash = this.digest().digest(s.getBytes(StandardCharsets.UTF_8));
+        return new HashResult(hash);
     }
 
     public HashResult hash(final InputStream stream) throws IOException {
         return calculateHash(stream, this.digest());
     }
 
-    @SuppressWarnings("StatementWithEmptyBody")
-    private static HashResult calculateHash(final InputStream inputStream, final MessageDigest digest) throws IOException {
-        final DigestInputStream stream = new DigestInputStream(inputStream, digest);
-        try (stream) {
-            final byte[] buffer = new byte[8192];
-            while (stream.read(buffer) != -1) {
-                // reading
+    private static HashResult calculateHash(final InputStream stream, final MessageDigest digest) throws IOException {
+        final byte[] buffer = new byte[8192];
+        while (true) {
+            final int count = stream.read(buffer);
+            if (count == -1) {
+                break;
             }
+            digest.update(buffer, 0, count);
         }
-        return new HashResult(stream.getMessageDigest().digest());
+        return new HashResult(digest.digest());
     }
 }

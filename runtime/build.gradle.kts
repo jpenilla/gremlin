@@ -15,3 +15,8 @@ dependencies {
 
     compileOnly(libs.bundles.platformSupport)
 }
+
+tasks.compileJava {
+    // we don't support Java serialization
+    options.compilerArgs.add("-Xlint:-serial")
+}

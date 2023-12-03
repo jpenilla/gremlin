@@ -17,10 +17,8 @@
  */
 package xyz.jpenilla.gremlin.runtime.util;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
@@ -43,8 +41,12 @@ public final class MultiAlgorithmHasher {
         }
     }
 
-    public HashesMap hashString(final String s) throws IOException {
-        return this.hash(new ByteArrayInputStream(s.getBytes(StandardCharsets.UTF_8)));
+    public HashesMap hashString(final String s) {
+        final HashesMap resultMap = new HashesMapImpl(this.algorithms.length);
+        for (final HashingAlgorithm algo : this.algorithms) {
+            resultMap.put(algo, algo.hashString(s));
+        }
+        return resultMap;
     }
 
     public HashesMap hashFile(final Path file) throws IOException {
