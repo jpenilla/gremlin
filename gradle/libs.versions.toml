@@ -10,7 +10,7 @@ slf4j-api = "org.slf4j:slf4j-api:2.0.11"
 jspecifyAnnotations = "org.jspecify:jspecify:0.3.0"
 paperApi = "io.papermc.paper:paper-api:1.20.2-R0.1-SNAPSHOT"
 velocityApi = "com.velocitypowered:velocity-api:3.2.0-SNAPSHOT"
-fabricLoader = "net.fabricmc:fabric-loader:0.14.24"
+fabricLoader = "net.fabricmc:fabric-loader:0.15.6"
 asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
 shadow = "com.github.johnrengelman:shadow:8.1.1"
