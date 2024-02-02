@@ -40,8 +40,6 @@ import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.component.external.model.DefaultModuleComponentArtifactIdentifier
-import org.gradle.internal.component.local.model.ComponentFileArtifactIdentifier
-import org.gradle.internal.component.model.IvyArtifactName
 import java.util.function.Function
 import javax.inject.Inject
 
@@ -156,7 +154,7 @@ abstract class WriteDependencySet : DefaultTask() {
             out.sectionHeader("relocation")
 
             for (dependency in relocArtifacts.sorted()) {
-                out.append("dep ").append(dependencyLine(dependency))
+                dependencyLine(dependency)?.let { out.append("dep ").append(it) }
             }
 
             for (r in relocations) {
@@ -182,14 +180,13 @@ abstract class WriteDependencySet : DefaultTask() {
     protected open fun touchOutput(out: StringBuilder) {
     }
 
-    protected fun dependencyLine(artifact: ResolvedArtifactResult, appendNewline: Boolean = true): String {
+    protected fun dependencyLine(artifact: ResolvedArtifactResult, appendNewline: Boolean = true): String? {
         val artifactId = artifact.id
         val componentId = artifactId.componentIdentifier as? ModuleComponentIdentifier ?: return ""
 
         val ivyName = when (artifactId) {
             is DefaultModuleComponentArtifactIdentifier -> artifactId.name
-            is ComponentFileArtifactIdentifier -> artifactId.rawFileName as? IvyArtifactName
-            else -> return ""
+            else -> return null
         }
 
         val notation = StringBuilder()
