@@ -146,7 +146,7 @@ abstract class WriteDependencySet : DefaultTask() {
 
         out.sectionHeader("deps")
         for (dependency in artifacts.sorted()) {
-            out.append(dependencyLine(dependency))
+            dependencyLine(dependency)?.let { out.append(it) }
         }
         out.sectionEnd()
 
@@ -182,7 +182,7 @@ abstract class WriteDependencySet : DefaultTask() {
 
     protected fun dependencyLine(artifact: ResolvedArtifactResult, appendNewline: Boolean = true): String? {
         val artifactId = artifact.id
-        val componentId = artifactId.componentIdentifier as? ModuleComponentIdentifier ?: return ""
+        val componentId = artifactId.componentIdentifier as? ModuleComponentIdentifier ?: return null
 
         val ivyName = when (artifactId) {
             is DefaultModuleComponentArtifactIdentifier -> artifactId.name
@@ -203,12 +203,12 @@ abstract class WriteDependencySet : DefaultTask() {
 
         notation.append(version)
 
-        val classifier = ivyName?.classifier?.takeIf { it.isNotBlank() }
+        val classifier = ivyName.classifier?.takeIf { it.isNotBlank() }
         if (classifier != null) {
             notation.append(':').append(classifier)
         }
 
-        val ext = ivyName?.extension
+        val ext = ivyName.extension
             ?: artifact.file.extension.takeIf { it.isNotBlank() }
             ?: error("File '${artifact.file.absolutePath}' does not have an extension?")
 
