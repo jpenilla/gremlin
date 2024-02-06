@@ -186,7 +186,7 @@ abstract class WriteDependencySet : DefaultTask() {
 
         val ivyName = when (artifactId) {
             is DefaultModuleComponentArtifactIdentifier -> artifactId.name
-            else -> return null
+            else -> null
         }
 
         val notation = StringBuilder()
@@ -203,12 +203,12 @@ abstract class WriteDependencySet : DefaultTask() {
 
         notation.append(version)
 
-        val classifier = ivyName.classifier?.takeIf { it.isNotBlank() }
+        val classifier = ivyName?.classifier?.takeIf { it.isNotBlank() }
         if (classifier != null) {
             notation.append(':').append(classifier)
         }
 
-        val ext = ivyName.extension
+        val ext = ivyName?.extension
             ?: artifact.file.extension.takeIf { it.isNotBlank() }
             ?: error("File '${artifact.file.absolutePath}' does not have an extension?")
 
