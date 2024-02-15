@@ -21,6 +21,8 @@ import org.gradle.api.Action
 import org.gradle.api.DefaultTask
 import org.gradle.api.Named
 import org.gradle.api.NamedDomainObjectContainer
+import org.gradle.api.NamedDomainObjectProvider
+import org.gradle.api.artifacts.ArtifactCollection
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
@@ -28,6 +30,7 @@ import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
 import org.gradle.api.internal.artifacts.repositories.resolver.MavenUniqueSnapshotComponentIdentifier
+import org.gradle.api.model.ObjectFactory
 import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
@@ -38,28 +41,28 @@ import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.Nested
 import org.gradle.api.tasks.Optional
 import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.component.external.model.DefaultModuleComponentArtifactIdentifier
+import org.gradle.kotlin.dsl.newInstance
 import java.util.function.Function
 import javax.inject.Inject
 
+@Suppress("LeakingThis")
 abstract class WriteDependencySet : DefaultTask() {
     companion object {
         protected const val SECTION_END = "__end__\n"
     }
 
-    @get:Internal
-    abstract val artifacts: SetProperty<ResolvedArtifactResult>
+    @get:Inject
+    abstract val objects: ObjectFactory
 
-    @get:InputFiles
-    abstract val artifactFiles: ConfigurableFileCollection
+    @get:Inject
+    abstract val layout: ProjectLayout
 
-    @get:Internal
-    abstract val relocArtifacts: SetProperty<ResolvedArtifactResult>
-
-    @get:InputFiles
-    @get:Optional
-    abstract val relocArtifactFiles: ConfigurableFileCollection
+    @get:Nested
+    val dependencies: Artifacts = objects.newInstance(Artifacts::class)
 
     @get:Input
     abstract val outputFileName: Property<String>
@@ -73,25 +76,8 @@ abstract class WriteDependencySet : DefaultTask() {
     @get:Nested
     abstract val relocations: NamedDomainObjectContainer<Relocation>
 
-    @get:Inject
-    abstract val layout: ProjectLayout
-
-    interface Relocation : Named {
-        @Input
-        override fun getName(): String
-
-        @get:Input
-        val from: Property<String>
-
-        @get:Input
-        val to: Property<String>
-
-        @get:Input
-        val includes: SetProperty<String>
-
-        @get:Input
-        val excludes: SetProperty<String>
-    }
+    @get:Nested
+    val relocationDependencies: Artifacts = objects.newInstance(Artifacts::class)
 
     init {
         init()
@@ -109,26 +95,6 @@ abstract class WriteDependencySet : DefaultTask() {
             configure?.execute(this)
         }
 
-    fun configuration(configuration: Configuration) {
-        artifacts.set(configuration.incoming.artifacts)
-        artifactFiles.setFrom(configuration)
-    }
-
-    fun configuration(configuration: Provider<Configuration>) {
-        artifacts.set(configuration.map { it.incoming.artifacts })
-        artifactFiles.setFrom(configuration)
-    }
-
-    fun relocationConfiguration(configuration: Configuration) {
-        relocArtifacts.set(configuration.incoming.artifacts)
-        relocArtifactFiles.setFrom(configuration)
-    }
-
-    fun relocationConfiguration(configuration: Provider<Configuration>) {
-        relocArtifacts.set(configuration.map { it.incoming.artifacts })
-        relocArtifactFiles.setFrom(configuration)
-    }
-
     @TaskAction
     fun run() {
         val out = StringBuilder()
@@ -145,7 +111,7 @@ abstract class WriteDependencySet : DefaultTask() {
         out.sectionEnd()
 
         out.sectionHeader("deps")
-        for (dependency in artifacts.sorted()) {
+        for (dependency in dependencies.artifacts.sorted()) {
             dependencyLine(dependency)?.let { out.append(it) }
         }
         out.sectionEnd()
@@ -153,7 +119,7 @@ abstract class WriteDependencySet : DefaultTask() {
         if (relocations.isNotEmpty()) {
             out.sectionHeader("relocation")
 
-            for (dependency in relocArtifacts.sorted()) {
+            for (dependency in relocationDependencies.artifacts.sorted()) {
                 dependencyLine(dependency)?.let { out.append("dep ").append(it) }
             }
 
@@ -231,4 +197,44 @@ abstract class WriteDependencySet : DefaultTask() {
         Comparator.comparing<ResolvedArtifactResult, String> { it.id.componentIdentifier.displayName }
             .thenComparing(Function { it.file.name })
     )
+
+    interface Relocation : Named {
+        @Input
+        override fun getName(): String
+
+        @get:Input
+        val from: Property<String>
+
+        @get:Input
+        val to: Property<String>
+
+        @get:Input
+        val includes: SetProperty<String>
+
+        @get:Input
+        val excludes: SetProperty<String>
+    }
+
+    abstract class Artifacts {
+        @get:Internal
+        abstract val artifacts: SetProperty<ResolvedArtifactResult>
+
+        /**
+         * Only here to ensure inputs get wired properly. [dependencies] is what we care about.
+         */
+        @get:InputFiles
+        @get:Optional
+        @get:PathSensitive(PathSensitivity.NONE)
+        abstract val files: ConfigurableFileCollection
+
+        fun setFrom(configuration: NamedDomainObjectProvider<Configuration>) {
+            artifacts.set(configuration.flatMap { it.incoming.artifacts.resolvedArtifacts })
+            files.setFrom(configuration.map { it.incoming.artifacts.artifactFiles })
+        }
+
+        fun setFrom(artifactCollection: Provider<ArtifactCollection>) {
+            artifacts.set(artifactCollection.flatMap { it.resolvedArtifacts })
+            files.setFrom(artifactCollection.map { it.artifactFiles })
+        }
+    }
 }

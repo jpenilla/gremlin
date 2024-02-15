@@ -60,10 +60,12 @@ publishing {
 
 sourceSets.main {
     blossom.kotlinSources {
-        properties.put("jarRelocatorDefaultRuntime", provider {
-            jarRelocatorDefaultRuntime.incoming.resolutionResult.root.dependencies
-                .map { (it as ResolvedDependencyResult).resolvedVariant.owner.displayName }
-        })
+        properties.put(
+            "jarRelocatorDefaultRuntime",
+            jarRelocatorDefaultRuntime.incoming.resolutionResult.rootComponent.map {
+                it.dependencies.map { dep -> (dep as ResolvedDependencyResult).resolvedVariant.owner.displayName }
+            }
+        )
         properties.put("gremlinVer", project.version)
     }
 }

@@ -52,8 +52,8 @@ class GremlinPlugin : Plugin<Project> {
         }
 
         val writeDependencies = target.tasks.register("writeDependencies", WriteDependencySet::class) {
-            configuration(runtimeDownload)
-            relocationConfiguration(jarRelocatorRuntime)
+            dependencies.setFrom(runtimeDownload)
+            relocationDependencies.setFrom(jarRelocatorRuntime)
             outputFileName.convention("dependencies.txt")
         }
 
