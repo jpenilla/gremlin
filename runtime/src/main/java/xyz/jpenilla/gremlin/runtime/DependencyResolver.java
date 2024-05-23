@@ -108,6 +108,16 @@ public final class DependencyResolver implements AutoCloseable {
         if (e != null) {
             throw Util.rethrow(e);
         }
+
+        // JDK 21+
+        //noinspection ConstantValue,RedundantClassCall
+        if (AutoCloseable.class.isInstance(this.client)) {
+            try {
+                ((AutoCloseable) this.client).close();
+            } catch (final Exception ex) {
+                throw new RuntimeException("Failed to close HttpClient", ex);
+            }
+        }
     }
 
     public ResolvedDependencySet resolve(final DependencySet dependencySet, final DependencyCache cache) {
