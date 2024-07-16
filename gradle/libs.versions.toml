@@ -7,7 +7,7 @@ blossom = { id = "net.kyori.blossom", version = "2.1.0" }
 [libraries]
 jarRelocator = "me.lucko:jar-relocator:1.7"
 slf4j-api = "org.slf4j:slf4j-api:2.0.12"
-jspecifyAnnotations = "org.jspecify:jspecify:0.3.0"
+jspecifyAnnotations = "org.jspecify:jspecify:1.0.0"
 paperApi = "io.papermc.paper:paper-api:1.20.2-R0.1-SNAPSHOT"
 velocityApi = "com.velocitypowered:velocity-api:3.2.0-SNAPSHOT"
 fabricLoader = "net.fabricmc:fabric-loader:0.15.11"
