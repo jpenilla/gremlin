@@ -52,6 +52,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
+import xyz.jpenilla.gremlin.runtime.logging.GremlinLogger;
 import xyz.jpenilla.gremlin.runtime.util.HashResult;
 import xyz.jpenilla.gremlin.runtime.util.HashingAlgorithm;
 import xyz.jpenilla.gremlin.runtime.util.MultiAlgorithmHasher;
