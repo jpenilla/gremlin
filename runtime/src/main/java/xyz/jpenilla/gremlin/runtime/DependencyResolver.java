@@ -52,7 +52,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
-import org.slf4j.Logger;
 import xyz.jpenilla.gremlin.runtime.util.HashResult;
 import xyz.jpenilla.gremlin.runtime.util.HashingAlgorithm;
 import xyz.jpenilla.gremlin.runtime.util.MultiAlgorithmHasher;
@@ -66,13 +65,13 @@ public final class DependencyResolver implements AutoCloseable {
     private static final String USER_AGENT_HEADER = "User-Agent";
     private static final String USER_AGENT = "gremlin";
 
-    private final Logger logger;
+    private final GremlinLogger logger;
     private final HttpClient client;
     private final Map<String, ClassLoaderIsolatedJarProcessorProvider> isolatedProcessorProviders = new ConcurrentHashMap<>();
     private final Map<Thread, Object> resolving = new HashMap<>();
     private volatile boolean closed = false;
 
-    public DependencyResolver(final Logger logger) {
+    public DependencyResolver(final GremlinLogger logger) {
         this.logger = logger;
         this.client = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -380,10 +379,10 @@ public final class DependencyResolver implements AutoCloseable {
                 throw Util.rethrow(e);
             }
             if (response == null || response.statusCode() != 200) {
-                this.logger.debug("Failed to download {}: {}", urlString, response == null ? "null response" : "response code " + response.statusCode());
+                this.logger.debug("Failed to download " + urlString + ": " + (response == null ? "null response" : "response code " + response.statusCode()));
                 continue;
             }
-            this.logger.debug("Successfully downloaded {}", urlString);
+            this.logger.debug("Successfully downloaded " + urlString);
             resolved = response.body();
             break;
         }
@@ -489,9 +488,9 @@ public final class DependencyResolver implements AutoCloseable {
         private static final AtomicInteger poolNumber = new AtomicInteger(1);
         private final AtomicInteger threadNumber = new AtomicInteger(1);
         private final String namePrefix;
-        private final Logger logger;
+        private final GremlinLogger logger;
 
-        ResolverThreadFactory(final Logger logger) {
+        ResolverThreadFactory(final GremlinLogger logger) {
             this.namePrefix = DependencyResolver.class.getSimpleName() + "-pool-" + poolNumber.getAndIncrement() + "-thread-";
             this.logger = logger;
         }
@@ -506,7 +505,7 @@ public final class DependencyResolver implements AutoCloseable {
             );
             thr.setDaemon(true);
             thr.setPriority(Thread.NORM_PRIORITY);
-            thr.setUncaughtExceptionHandler((thread, throwable) -> this.logger.warn("Uncaught exception on thread {}", thread.getName(), throwable));
+            thr.setUncaughtExceptionHandler((thread, throwable) -> this.logger.warn("Uncaught exception on thread " + thread.getName(), throwable));
             return thr;
         }
     }

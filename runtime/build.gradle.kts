@@ -10,7 +10,8 @@ repositories {
 
 dependencies {
     compileOnly(libs.jarRelocator)
-    compileOnlyApi(libs.slf4j.api)
+    compileOnly(libs.slf4j.api)
+    compileOnly(libs.log4j.api)
     compileOnlyApi(libs.jspecifyAnnotations)
 
     compileOnly(libs.bundles.platformSupport)
