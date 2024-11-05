@@ -23,7 +23,7 @@ import org.jspecify.annotations.NullMarked;
 import xyz.jpenilla.gremlin.runtime.DependencyCache;
 import xyz.jpenilla.gremlin.runtime.DependencyResolver;
 import xyz.jpenilla.gremlin.runtime.DependencySet;
-import xyz.jpenilla.gremlin.runtime.GremlinLogger;
+import xyz.jpenilla.gremlin.runtime.logging.Slf4jGremlinLogger;
 
 /**
  * Paper {@link PluginLoader} that automatically loads dependencies using
@@ -41,7 +41,7 @@ public final class DefaultsPaperPluginLoader implements PluginLoader {
     public void classloader(final PluginClasspathBuilder classpath) {
         final DependencySet deps = DependencySet.readDefault(this.getClass().getClassLoader());
         final DependencyCache cache = new DependencyCache(classpath.getContext().getDataDirectory().resolve("libraries"));
-        try (final DependencyResolver downloader = new DependencyResolver(GremlinLogger.slf4j(classpath.getContext().getLogger()))) {
+        try (final DependencyResolver downloader = new DependencyResolver(new Slf4jGremlinLogger(classpath.getContext().getLogger()))) {
             new PaperClasspathAppender(classpath).append(downloader.resolve(deps, cache).jarFiles());
         }
         cache.cleanup();
