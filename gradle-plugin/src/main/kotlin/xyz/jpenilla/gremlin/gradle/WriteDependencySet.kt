@@ -24,8 +24,10 @@ import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.NamedDomainObjectProvider
 import org.gradle.api.artifacts.ArtifactCollection
 import org.gradle.api.artifacts.Configuration
+import org.gradle.api.artifacts.component.ComponentArtifactIdentifier
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 import org.gradle.api.artifacts.result.ResolvedArtifactResult
+import org.gradle.api.artifacts.result.ResolvedVariantResult
 import org.gradle.api.file.ConfigurableFileCollection
 import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.file.ProjectLayout
@@ -46,7 +48,7 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 import org.gradle.internal.component.external.model.DefaultModuleComponentArtifactIdentifier
 import org.gradle.kotlin.dsl.newInstance
-import java.util.function.Function
+import java.io.File
 import javax.inject.Inject
 
 @Suppress("LeakingThis")
@@ -111,7 +113,7 @@ abstract class WriteDependencySet : DefaultTask() {
         out.sectionEnd()
 
         out.sectionHeader("deps")
-        for (dependency in dependencies.artifacts.sorted()) {
+        for (dependency in dependencies.artifacts()) {
             dependencyLine(dependency)?.let { out.append(it) }
         }
         out.sectionEnd()
@@ -119,7 +121,7 @@ abstract class WriteDependencySet : DefaultTask() {
         if (relocations.isNotEmpty()) {
             out.sectionHeader("relocation")
 
-            for (dependency in relocationDependencies.artifacts.sorted()) {
+            for (dependency in relocationDependencies.artifacts()) {
                 dependencyLine(dependency)?.let { out.append("dep ").append(it) }
             }
 
@@ -146,7 +148,7 @@ abstract class WriteDependencySet : DefaultTask() {
     protected open fun touchOutput(out: StringBuilder) {
     }
 
-    protected fun dependencyLine(artifact: ResolvedArtifactResult, appendNewline: Boolean = true): String? {
+    protected fun dependencyLine(artifact: Artifacts.Artifact, appendNewline: Boolean = true): String? {
         val artifactId = artifact.id
         val componentId = artifactId.componentIdentifier as? ModuleComponentIdentifier ?: return null
 
@@ -193,11 +195,6 @@ abstract class WriteDependencySet : DefaultTask() {
         append(SECTION_END)
     }
 
-    protected fun Provider<Set<ResolvedArtifactResult>>.sorted(): List<ResolvedArtifactResult> = get().sortedWith(
-        Comparator.comparing<ResolvedArtifactResult, String> { it.id.componentIdentifier.displayName }
-            .thenComparing(Function { it.file.name })
-    )
-
     interface Relocation : Named {
         @Input
         override fun getName(): String
@@ -216,25 +213,56 @@ abstract class WriteDependencySet : DefaultTask() {
     }
 
     abstract class Artifacts {
+        data class Artifact(
+            val id: ComponentArtifactIdentifier,
+            val variant: ResolvedVariantResult,
+            val file: File,
+        )
+
+        // We need to split the metadata and files to be compatible with configuration cache.
+
         @get:Internal
-        abstract val artifacts: SetProperty<ResolvedArtifactResult>
+        abstract val componentArtifactIdentifiers: ListProperty<ComponentArtifactIdentifier>
+
+        @get:Internal
+        abstract val resolvedVariantResults: ListProperty<ResolvedVariantResult>
+
+        @get:Internal
+        abstract val filesInternal: ListProperty<File>
 
         /**
-         * Only here to ensure inputs get wired properly. [dependencies] is what we care about.
+         * Ensure Gradle properly tracks our dependency on these files (and their metadata)
          */
         @get:InputFiles
         @get:Optional
         @get:PathSensitive(PathSensitivity.NONE)
         abstract val files: ConfigurableFileCollection
 
-        fun setFrom(configuration: NamedDomainObjectProvider<Configuration>) {
-            artifacts.set(configuration.flatMap { it.incoming.artifacts.resolvedArtifacts })
-            files.setFrom(configuration.map { it.incoming.artifacts.artifactFiles })
+        fun artifacts(): List<Artifact> {
+            val ids = componentArtifactIdentifiers.get()
+            val variants = resolvedVariantResults.get()
+            val files = filesInternal.get()
+            if (setOf(ids.size, variants.size, files.size).size != 1) {
+                throw IllegalStateException("Mismatch between artifact input list lengths (ids: ${ids.size}, variants: ${variants.size}, files: ${files.size})")
+            }
+            return ids.mapIndexed { idx, id -> Artifact(id, variants[idx], files[idx]) }
         }
 
+        fun setFrom(configuration: NamedDomainObjectProvider<Configuration>) = setFrom(configuration.map { it.incoming.artifacts })
+
         fun setFrom(artifactCollection: Provider<ArtifactCollection>) {
-            artifacts.set(artifactCollection.flatMap { it.resolvedArtifacts })
             files.setFrom(artifactCollection.map { it.artifactFiles })
+            val artifactsSorted = artifactCollection.flatMap {
+                it.resolvedArtifacts.map { resolvedArtifacts ->
+                    resolvedArtifacts.sortedWith(
+                        Comparator.comparing<ResolvedArtifactResult, String> { artifact -> artifact.id.componentIdentifier.displayName }
+                            .thenComparing { artifact -> artifact.file.name }
+                    )
+                }
+            }
+            componentArtifactIdentifiers.set(artifactsSorted.map { list -> list.map { it.id } })
+            resolvedVariantResults.set(artifactsSorted.map { list -> list.map { it.variant } })
+            filesInternal.set(artifactsSorted.map { list -> list.map { it.file } })
         }
     }
 }
