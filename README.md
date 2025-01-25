@@ -68,7 +68,7 @@ The entrypoint to the runtime component is the `DependencyResolver`. The followi
 ```java
 final DependencySet deps = DependencySet.readDefault(this.getClass().getClassLoader());
 final DependencyCache cache = new DependencyCache(/* cache directory */);
-try (final DependencyResolver downloader = new DependencyResolver(/* slf4j logger */)) {
+try (final DependencyResolver downloader = new DependencyResolver(/* logger */)) {
     final Set<Path> jars = downloader.resolve(deps, cache).jarFiles();
     // ...
 }
