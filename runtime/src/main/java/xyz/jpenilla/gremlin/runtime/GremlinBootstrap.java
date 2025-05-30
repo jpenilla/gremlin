@@ -23,6 +23,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -160,7 +161,7 @@ public final class GremlinBootstrap {
         }
         final Set<String> nestedJarsPaths = new LinkedHashSet<>();
         try (nestedJarsIndexStream) {
-            final String indexContent = new String(nestedJarsIndexStream.readAllBytes());
+            final String indexContent = new String(nestedJarsIndexStream.readAllBytes(), StandardCharsets.UTF_8);
             for (final String line : indexContent.split("\n")) {
                 nestedJarsPaths.add(line.trim());
             }
