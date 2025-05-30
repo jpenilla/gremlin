@@ -32,33 +32,91 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Logger;
+import org.jspecify.annotations.NullMarked;
 import xyz.jpenilla.gremlin.runtime.logging.GremlinLogger;
 import xyz.jpenilla.gremlin.runtime.logging.JavaGremlinLogger;
 
+@NullMarked
 public final class GremlinBootstrap {
+    private static final String DOT_GREMLIN = ".gremlin";
+    private static final String NESTED_JARS = "nested-jars";
+    private static final String NESTED_JARS_INDEX = NESTED_JARS + "/index.txt";
+    private static final String DEPENDENCY_CACHE = "dependency-cache";
+    private static final String GREMLIN_MAIN_CLASS = "Gremlin-Main-Class";
+
     public GremlinBootstrap() {
     }
 
     public static void main(final String[] args) {
-        final InputStream nestedJarsIndexStream = GremlinBootstrap.class.getClassLoader().getResourceAsStream("nested-jars/index.txt");
-        if (nestedJarsIndexStream == null) {
-            throw new IllegalStateException("Could not find nested-jars/index.txt in classpath");
-        }
-        final List<String> nestedJarsPaths = new ArrayList<>();
-        try (nestedJarsIndexStream) {
-            final String indexContent = new String(nestedJarsIndexStream.readAllBytes());
-            for (final String line : indexContent.split("\n")) {
-                nestedJarsPaths.add(line.trim());
-            }
-        } catch (final Exception e) {
-            throw new RuntimeException("Failed to read nested-jars/index.txt", e);
-        }
         final List<Path> jars = new ArrayList<>(
-            extractNestedJars(nestedJarsPaths, Path.of(".gremlin/nested-jars"))
+            extractNestedJars(Path.of(DOT_GREMLIN + "/" + NESTED_JARS))
         );
 
+        final DependencySet dependencies = getDependencies(jars);
+        final DependencyCache cache = new DependencyCache(Path.of(DOT_GREMLIN + "/" + DEPENDENCY_CACHE));
+        final GremlinLogger logger = new JavaGremlinLogger(Logger.getLogger(GremlinBootstrap.class.getName()));
+        try (final DependencyResolver resolver = new DependencyResolver(logger)) {
+            jars.addAll(resolver.resolve(dependencies, cache).jarFiles());
+        }
+
+        final String mainClassName = getMainClassName();
+        final ClassLoader loader = buildClassLoader(jars);
+        final Method main = getMainMethod(mainClassName, loader);
+
+        final Thread applicationThread = new Thread(() -> {
+            try {
+                main.invoke(null, (Object) args);
+            } catch (final IllegalAccessException e) {
+                throw new RuntimeException("Failed to invoke main method of class: " + mainClassName, e);
+            } catch (final InvocationTargetException e) {
+                throw new RuntimeException("Uncaught exception during application execution", e.getCause());
+            }
+        }, "bootstrapped-main");
+        applicationThread.setContextClassLoader(loader);
+        applicationThread.start();
+
+        try {
+            cache.cleanup();
+        } catch (final Throwable e) {
+            //noinspection CallToPrintStackTrace
+            new RuntimeException("Exception cleaning up dependency cache", e).printStackTrace();
+        }
+    }
+
+    private static Method getMainMethod(final String mainClassName, final ClassLoader loader) {
+        final Class<?> mainClass;
+        try {
+            mainClass = Class.forName(mainClassName, true, loader);
+        } catch (final ClassNotFoundException e) {
+            throw new RuntimeException("Main class not found: " + mainClassName, e);
+        }
+        try {
+            return mainClass.getMethod("main", String[].class);
+        } catch (final ReflectiveOperationException e) {
+            throw new RuntimeException("Main method not found in class: " + mainClassName, e);
+        }
+    }
+
+    private static String getMainClassName() {
+        final String mainClassName;
+        try (final InputStream manifestStream = GremlinBootstrap.class.getClassLoader().getResourceAsStream(JarFile.MANIFEST_NAME)) {
+            if (manifestStream == null) {
+                throw new IllegalStateException("Could not find " + JarFile.MANIFEST_NAME + " in classpath");
+            }
+            final Manifest manifest = new Manifest(manifestStream);
+            mainClassName = manifest.getMainAttributes().getValue(GREMLIN_MAIN_CLASS);
+            if (mainClassName == null || mainClassName.isEmpty()) {
+                throw new IllegalStateException(GREMLIN_MAIN_CLASS + " not specified in manifest");
+            }
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to read " + JarFile.MANIFEST_NAME, e);
+        }
+        return mainClassName;
+    }
+
+    private static DependencySet getDependencies(final List<Path> nestedJars) {
         DependencySet dependencies = null;
-        for (final Path jar : jars) {
+        for (final Path jar : nestedJars) {
             try (final JarFile jarFile = new JarFile(jar.toFile())) {
                 final JarEntry entry = jarFile.getJarEntry("dependencies.txt");
                 if (entry != null) {
@@ -74,14 +132,10 @@ public final class GremlinBootstrap {
         if (dependencies == null) {
             throw new IllegalStateException("No dependencies.txt found in nested jars");
         }
+        return dependencies;
+    }
 
-        final DependencyCache cache = new DependencyCache(Path.of(".gremlin/dependency-cache"));
-
-        final GremlinLogger logger = new JavaGremlinLogger(Logger.getLogger(GremlinBootstrap.class.getName()));
-        try (final DependencyResolver resolver = new DependencyResolver(logger)) {
-            jars.addAll(resolver.resolve(dependencies, cache).jarFiles());
-        }
-
+    private static ClassLoader buildClassLoader(final List<Path> jars) {
         final URL[] classpath = jars.stream()
             .map(Path::toUri)
             .map(uri -> {
@@ -93,54 +147,24 @@ public final class GremlinBootstrap {
             })
             .toArray(URL[]::new);
 
-        final String mainClassName;
-        try (final InputStream manifestStream = GremlinBootstrap.class.getClassLoader().getResourceAsStream("META-INF/MANIFEST.MF")) {
-            if (manifestStream == null) {
-                throw new IllegalStateException("Could not find META-INF/MANIFEST.MF in classpath");
-            }
-            final Manifest manifest = new Manifest(manifestStream);
-            mainClassName = manifest.getMainAttributes().getValue("Gremlin-Main-Class");
-            if (mainClassName == null || mainClassName.isEmpty()) {
-                throw new IllegalStateException("Gremlin-Main-Class not specified in manifest");
-            }
-        } catch (final IOException e) {
-            throw new RuntimeException("Failed to read META-INF/MANIFEST.MF", e);
-        }
-
-        final ClassLoader loader = new URLClassLoader(classpath, GremlinBootstrap.class.getClassLoader());
-        final Class<?> mainClass;
-        try {
-            mainClass = Class.forName(mainClassName, true, loader);
-        } catch (final ClassNotFoundException e) {
-            throw new RuntimeException("Main class not found: " + mainClassName, e);
-        }
-        final Method main;
-        try {
-            main = mainClass.getMethod("main", String[].class);
-        } catch (final ReflectiveOperationException e) {
-            throw new RuntimeException("Main method not found in class: " + mainClassName, e);
-        }
-        final Thread thread = new Thread(() -> {
-            try {
-                main.invoke(null, (Object) args);
-            } catch (final IllegalAccessException e) {
-                throw new RuntimeException("Failed to invoke main method of class: " + mainClassName, e);
-            } catch (final InvocationTargetException e) {
-                throw new RuntimeException("Uncaught exception in main method of class: " + mainClassName, e.getCause());
-            }
-        }, "Gremlin Bootstrap Thread");
-        thread.setContextClassLoader(loader);
-        thread.start();
-
-        try {
-            cache.cleanup();
-        } catch (final Throwable e) {
-            //noinspection CallToPrintStackTrace
-            new RuntimeException("Exception cleaning up dependency cache", e).printStackTrace();
-        }
+        return new URLClassLoader(classpath, GremlinBootstrap.class.getClassLoader());
     }
 
-    private static List<Path> extractNestedJars(final List<String> nestedJarsPaths, final Path into) {
+    private static List<Path> extractNestedJars(final Path into) {
+        final InputStream nestedJarsIndexStream = GremlinBootstrap.class.getClassLoader().getResourceAsStream(NESTED_JARS_INDEX);
+        if (nestedJarsIndexStream == null) {
+            throw new IllegalStateException("Could not find " + NESTED_JARS_INDEX + " in classpath");
+        }
+        final List<String> nestedJarsPaths = new ArrayList<>();
+        try (nestedJarsIndexStream) {
+            final String indexContent = new String(nestedJarsIndexStream.readAllBytes());
+            for (final String line : indexContent.split("\n")) {
+                nestedJarsPaths.add(line.trim());
+            }
+        } catch (final Exception e) {
+            throw new RuntimeException("Failed to read " + NESTED_JARS_INDEX, e);
+        }
+
         final List<Path> paths = new ArrayList<>();
         for (final String path : nestedJarsPaths) {
             final InputStream resourceStream = GremlinBootstrap.class.getClassLoader().getResourceAsStream("nested-jars/" + path);
