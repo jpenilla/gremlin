@@ -59,6 +59,11 @@ class GremlinPlugin : Plugin<Project> {
             }
         }
 
+        val nestedJars = target.configurations.register("nestedJars") {
+            makeResolvable()
+            runtimeClasspathAttributes(target.objects)
+        }
+
         val writeDependencies = target.tasks.register("writeDependencies", WriteDependencySet::class) {
             dependencies.setFrom(runtimeDownload)
             relocationDependencies.setFrom(jarRelocatorRuntime)
@@ -72,16 +77,15 @@ class GremlinPlugin : Plugin<Project> {
             }
         }
 
-        val indexTask = target.tasks.register<IndexNestedJars>("indexNestedJars") {
-            nestedJars.from(target.tasks.named("jar"))
-            outputFile.set(target.layout.buildDirectory.file("tmp/nested-jars-index.txt"))
+        val prepareNestedJars = target.tasks.register<PrepareNestedJars>("prepareNestedJars") {
+            this.nestedJars.setFrom(nestedJars)
         }
-        target.tasks.register<GremlinJar>("gremlinJar") {
+
+        target.tasks.register<BootstrapJar>("bootstrapJar") {
             this.gremlinRuntime.from(gremlinRuntime)
-            nestedJars.from(target.tasks.named("jar"))
-            nestedJarsIndex.convention(indexTask.flatMap { it.outputFile })
             archiveClassifier.convention("gremlin")
             destinationDirectory.convention(target.layout.buildDirectory.dir("libs"))
+            nestJars(prepareNestedJars)
         }
 
         target.afterEvaluate {
@@ -92,10 +96,12 @@ class GremlinPlugin : Plugin<Project> {
                     }
                 }
             }
-            if (ext.defaultGremlinRuntimeDependency.get()) {
+            if (ext.addGremlinRuntimeToCompileClasspath.get()) {
                 target.configurations.named(java.sourceSets.getByName("main").compileClasspathConfigurationName) {
                     extendsFrom(gremlinRuntime.get())
                 }
+            }
+            if (ext.addGremlinRuntimeToRuntimeClasspath.get()) {
                 target.configurations.named(java.sourceSets.getByName("main").runtimeClasspathConfigurationName) {
                     extendsFrom(gremlinRuntime.get())
                 }

@@ -19,28 +19,42 @@ package xyz.jpenilla.gremlin.gradle
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.ConfigurableFileCollection
-import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.file.DirectoryProperty
 import org.gradle.api.tasks.InputFiles
-import org.gradle.api.tasks.OutputFile
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
+import java.nio.file.Files
+import kotlin.io.path.ExperimentalPathApi
+import kotlin.io.path.deleteRecursively
+import kotlin.io.path.writeText
 
-abstract class IndexNestedJars : DefaultTask() {
+@OptIn(ExperimentalPathApi::class)
+abstract class PrepareNestedJars : DefaultTask() {
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
     @get:InputFiles
     abstract val nestedJars: ConfigurableFileCollection
 
-    @get:OutputFile
-    abstract val outputFile: RegularFileProperty
+    init {
+        init()
+    }
+
+    private fun init() {
+        outputDir.convention(project.layout.buildDirectory.dir("nested-jars/$name"))
+    }
 
     @TaskAction
     fun run() {
-        val text = StringBuilder()
-        nestedJars.files.forEach { jar ->
-            text.append(jar.name)
-            text.append("\n")
-        }
+        val outputPath = outputDir.path
+        outputPath.deleteRecursively()
+        Files.createDirectories(outputPath)
 
-        val outFile = outputFile.get().asFile
-        outFile.parentFile.mkdirs()
-        outFile.writeText(text.toString())
+        val index = mutableListOf<String>()
+        nestedJars.files.forEach { jar ->
+            Files.copy(jar.toPath(), outputPath.resolve(jar.name))
+            index += jar.name
+        }
+        outputPath.resolve("index.txt").writeText(index.joinToString("\n"))
     }
 }

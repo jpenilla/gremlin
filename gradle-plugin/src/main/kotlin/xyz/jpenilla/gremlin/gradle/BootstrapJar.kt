@@ -19,25 +19,18 @@ package xyz.jpenilla.gremlin.gradle
 
 import org.gradle.api.file.ArchiveOperations
 import org.gradle.api.file.ConfigurableFileCollection
-import org.gradle.api.file.RegularFileProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
-import org.gradle.api.tasks.InputFile
 import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.Optional
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.jvm.tasks.Jar
 import org.gradle.kotlin.dsl.attributes
 import javax.inject.Inject
 
-abstract class GremlinJar : Jar() {
+abstract class BootstrapJar : Jar() {
     @get:InputFiles
     abstract val gremlinRuntime: ConfigurableFileCollection
-
-    @get:InputFiles
-    abstract val nestedJars: ConfigurableFileCollection
-
-    @get:InputFile
-    abstract val nestedJarsIndex: RegularFileProperty
 
     @get:Inject
     abstract val archiveOps: ArchiveOperations
@@ -58,12 +51,6 @@ abstract class GremlinJar : Jar() {
         from(runtime) {
             exclude("META-INF/*")
         }
-        from(nestedJars) {
-            into("nested-jars")
-        }
-        from(nestedJarsIndex) {
-            rename { "nested-jars/index.txt" }
-        }
     }
 
     override fun copy() {
@@ -71,5 +58,11 @@ abstract class GremlinJar : Jar() {
             "Gremlin-Main-Class" to mainClass.get(),
         )
         super.copy()
+    }
+
+    fun nestJars(task: TaskProvider<out PrepareNestedJars>) {
+        from(task.flatMap { it.outputDir }) {
+            into("nested-jars")
+        }
     }
 }

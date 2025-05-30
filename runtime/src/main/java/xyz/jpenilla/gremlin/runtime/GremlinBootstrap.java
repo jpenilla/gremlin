@@ -32,6 +32,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 import org.jspecify.annotations.NullMarked;
 import xyz.jpenilla.gremlin.runtime.logging.GremlinLogger;
 import xyz.jpenilla.gremlin.runtime.logging.JavaGremlinLogger;
@@ -182,6 +183,18 @@ public final class GremlinBootstrap {
                 throw new RuntimeException("Failed to extract nested jar: " + path, e);
             }
         }
+
+        try (final Stream<Path> s = Files.list(into)) {
+            for (final Path path : s.toList()) {
+                if (Files.isRegularFile(path) && !nestedJarsPaths.contains(path.getFileName().toString())) {
+                    // Delete no longer needed nested jars
+                    Files.delete(path);
+                }
+            }
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to clean up nested jars directory: " + into, e);
+        }
+
         return paths;
     }
 }

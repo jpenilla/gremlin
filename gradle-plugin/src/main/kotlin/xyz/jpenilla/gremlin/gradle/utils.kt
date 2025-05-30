@@ -17,10 +17,24 @@
  */
 package xyz.jpenilla.gremlin.gradle
 
+import org.gradle.api.file.FileSystemLocationProperty
 import java.io.InputStream
+import java.net.URI
+import java.nio.file.FileSystem
+import java.nio.file.FileSystems
 import java.nio.file.Path
 import java.security.MessageDigest
 import kotlin.io.path.inputStream
+
+val FileSystemLocationProperty<*>.path: Path
+    get() = get().asFile.toPath()
+
+fun Path.jarUri(): URI = URI.create("jar:" + toUri().toString())
+
+fun <R> Path.openZip(op: (FileSystem) -> R): R =
+    FileSystems.newFileSystem(jarUri(), emptyMap<String, Any>()).use { fs ->
+        op(fs)
+    }
 
 enum class HashingAlgorithm(val algorithmName: String) {
     SHA256("SHA-256"),
