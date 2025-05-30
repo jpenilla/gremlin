@@ -17,6 +17,7 @@
  */
 package xyz.jpenilla.gremlin.runtime;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -102,8 +103,8 @@ public final class GremlinBootstrap {
             if (mainClassName == null || mainClassName.isEmpty()) {
                 throw new IllegalStateException("Gremlin-Main-Class not specified in manifest");
             }
-        } catch (final Exception e) {
-            throw new RuntimeException("Failed to invoke main method", e);
+        } catch (final IOException e) {
+            throw new RuntimeException("Failed to read META-INF/MANIFEST.MF", e);
         }
 
         final ClassLoader loader = new URLClassLoader(classpath, GremlinBootstrap.class.getClassLoader());
