@@ -27,7 +27,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -156,7 +158,7 @@ public final class GremlinBootstrap {
         if (nestedJarsIndexStream == null) {
             throw new IllegalStateException("Could not find " + NESTED_JARS_INDEX + " in classpath");
         }
-        final List<String> nestedJarsPaths = new ArrayList<>();
+        final Set<String> nestedJarsPaths = new LinkedHashSet<>();
         try (nestedJarsIndexStream) {
             final String indexContent = new String(nestedJarsIndexStream.readAllBytes());
             for (final String line : indexContent.split("\n")) {
