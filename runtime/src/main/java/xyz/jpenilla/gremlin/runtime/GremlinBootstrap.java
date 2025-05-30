@@ -130,6 +130,13 @@ public final class GremlinBootstrap {
         }, "Gremlin Bootstrap Thread");
         thread.setContextClassLoader(loader);
         thread.start();
+
+        try {
+            cache.cleanup();
+        } catch (final Throwable e) {
+            //noinspection CallToPrintStackTrace
+            new RuntimeException("Exception cleaning up dependency cache", e).printStackTrace();
+        }
     }
 
     private static List<Path> extractNestedJars(final List<String> nestedJarsPaths, final Path into) {
