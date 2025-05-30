@@ -18,10 +18,13 @@
 package xyz.jpenilla.gremlin.gradle
 
 import org.gradle.api.provider.Property
+import org.gradle.api.tasks.AbstractCopyTask
+import org.gradle.api.tasks.TaskProvider
 
 abstract class GremlinExtension {
     abstract val defaultJarRelocatorDependencies: Property<Boolean>
-    abstract val defaultGremlinRuntimeDependency: Property<Boolean>
+    abstract val addGremlinRuntimeToCompileClasspath: Property<Boolean>
+    abstract val addGremlinRuntimeToRuntimeClasspath: Property<Boolean>
 
     init {
         init()
@@ -29,6 +32,18 @@ abstract class GremlinExtension {
 
     private fun init() {
         defaultJarRelocatorDependencies.convention(true)
-        defaultGremlinRuntimeDependency.convention(true)
+        addGremlinRuntimeToCompileClasspath.convention(true)
+        addGremlinRuntimeToRuntimeClasspath.convention(true)
+    }
+
+    fun nestJars(
+        prepareNestedJars: TaskProvider<out PrepareNestedJars>,
+        into: TaskProvider<out AbstractCopyTask>
+    ) {
+        into.configure {
+            from(prepareNestedJars.flatMap { it.outputDir }) {
+                into("nested-jars")
+            }
+        }
     }
 }
