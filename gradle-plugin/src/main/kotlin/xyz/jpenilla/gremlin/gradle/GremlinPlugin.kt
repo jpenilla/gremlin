@@ -57,11 +57,29 @@ class GremlinPlugin : Plugin<Project> {
             outputFileName.convention("dependencies.txt")
         }
 
+        val defaultGremlinRuntime = target.configurations.register("defaultGremlinRuntime") {
+            defaultDependencies {
+                add(target.dependencies.create(Dependencies.DEFAULT_GREMLIN_RUNTIME))
+            }
+        }
+
         val java = target.extensions.getByType<JavaPluginExtension>()
         java.sourceSets.named("main") {
             resources {
                 srcDir(writeDependencies)
             }
+        }
+
+        val indexTask = target.tasks.register<IndexNestedJars>("indexNestedJars") {
+            nestedJars.from(target.tasks.named("jar"))
+            outputFile.set(target.layout.buildDirectory.file("tmp/nested-jars-index.txt"))
+        }
+        target.tasks.register<GremlinJar>("gremlinJar") {
+            gremlinRuntime.from(defaultGremlinRuntime)
+            nestedJars.from(target.tasks.named("jar"))
+            nestedJarsIndex.convention(indexTask.flatMap { it.outputFile })
+            archiveClassifier.convention("gremlin")
+            destinationDirectory.convention(target.layout.buildDirectory.dir("libs"))
         }
 
         target.afterEvaluate {
@@ -73,8 +91,8 @@ class GremlinPlugin : Plugin<Project> {
                 }
             }
             if (ext.defaultGremlinRuntimeDependency.get()) {
-                target.dependencies {
-                    java.sourceSets.getByName("main").implementationConfigurationName(Dependencies.DEFAULT_GREMLIN_RUNTIME)
+                target.configurations.named(java.sourceSets.getByName("main").implementationConfigurationName) {
+                    extendsFrom(defaultGremlinRuntime.get())
                 }
             }
 
