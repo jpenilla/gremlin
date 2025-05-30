@@ -61,9 +61,9 @@ public final class GremlinBootstrap {
 
         final String mainClassName = getMainClassName();
         final ClassLoader loader = buildClassLoader(jars);
-        final Method main = getMainMethod(mainClassName, loader);
 
         final Thread applicationThread = new Thread(() -> {
+            final Method main = getMainMethod(mainClassName, loader);
             try {
                 main.invoke(null, (Object) args);
             } catch (final IllegalAccessException e) {
