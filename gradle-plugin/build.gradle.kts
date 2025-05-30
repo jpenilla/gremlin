@@ -1,4 +1,4 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("base-conventions")
@@ -40,8 +40,10 @@ indraPluginPublishing {
     )
 }
 
-tasks.withType(KotlinCompile::class) {
-    kotlinOptions.jvmTarget = "11"
+kotlin {
+    compilerOptions {
+        jvmTarget = JvmTarget.JVM_11
+    }
 }
 
 indra {
