@@ -1,8 +1,4 @@
 plugins {
     id("parent-conventions")
-    alias(libs.plugins.indra.publishing.sonatype)
-}
-
-indraSonatype {
-    useAlternateSonatypeOSSHost("s01")
+    alias(libs.plugins.cloud.buildLogic.rootProject.publishing)
 }

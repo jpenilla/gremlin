@@ -1,8 +1,8 @@
 [plugins]
-indra-publishing-sonatype = { id = "net.kyori.indra.publishing.sonatype", version.ref = "indra" }
 indra-publishing-gradlePlugin = { id = "net.kyori.indra.publishing.gradle-plugin", version.ref = "indra" }
 gradle-pluginPublish = { id = "com.gradle.plugin-publish", version = "1.3.1" }
 blossom = { id = "net.kyori.blossom", version = "2.1.0" }
+cloud-buildLogic-rootProject-publishing = { id = "org.incendo.cloud-build-logic.publishing.root-project", version.ref = "cloud-build-logic" }
 
 [libraries]
 jarRelocator = "me.lucko:jar-relocator:1.7"
@@ -18,10 +18,12 @@ shadow = "com.github.johnrengelman:shadow:8.1.1"
 
 indra-common = { module = "net.kyori:indra-common", version.ref = "indra" }
 indra-licenser-spotless = { module = "net.kyori:indra-licenser-spotless", version.ref = "indra" }
+cloud-build-logic = { module = "org.incendo:cloud-build-logic", version.ref = "cloud-build-logic" }
 
 [versions]
 indra = "3.1.3"
 asm = "9.8"
+cloud-build-logic = "0.0.17"
 
 [bundles]
 jarRelocatorDefaultRuntime = ["jarRelocator", "asm-commons", "asm"]

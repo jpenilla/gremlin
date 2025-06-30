@@ -10,4 +10,5 @@ repositories {
 dependencies {
     implementation(libs.indra.common)
     implementation(libs.indra.licenser.spotless)
+    implementation(libs.cloud.build.logic)
 }
