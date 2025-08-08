@@ -1,3 +1,5 @@
+import org.incendo.cloudbuildlogic.jmp
+
 plugins {
     id("net.kyori.indra")
     id("net.kyori.indra.licenser.spotless")
@@ -7,10 +9,7 @@ indra {
     configurePublications {
         pom {
             developers {
-                developer {
-                    id.set("jmp")
-                    timezone.set("America/Phoenix")
-                }
+                jmp()
             }
         }
     }
