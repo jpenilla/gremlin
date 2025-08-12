@@ -47,4 +47,22 @@ object ShadowGremlin {
             else -> error("Expected ${ShadowJar::class.java.name} or ${WriteDependencySet::class.java.name}, not ${task::class.java.name}")
         }
     }
+
+    fun relocateWithPrefix(
+        task: Task,
+        prefix: String,
+        vararg fromPackages: String
+    ) {
+        relocateWithPrefix(task, prefix, listOf(*fromPackages))
+    }
+
+    fun relocateWithPrefix(
+        task: Task,
+        prefix: String,
+        fromPackages: Collection<String>
+    ) {
+        for (pkg in fromPackages) {
+            relocate(task, pkg, "$prefix.$pkg")
+        }
+    }
 }
