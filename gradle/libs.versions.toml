@@ -14,7 +14,7 @@ velocityApi = "com.velocitypowered:velocity-api:3.2.0-SNAPSHOT"
 fabricLoader = "net.fabricmc:fabric-loader:0.16.14"
 asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
-shadow = "com.gradleup.shadow:com.gradleup.shadow.gradle.plugin:9.0.2"
+shadow = "com.gradleup.shadow:com.gradleup.shadow.gradle.plugin:9.3.0"
 
 indra-common = { module = "net.kyori:indra-common", version.ref = "indra" }
 indra-licenser-spotless = { module = "net.kyori:indra-licenser-spotless", version.ref = "indra" }
