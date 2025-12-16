@@ -7,7 +7,7 @@ cloud-buildLogic-rootProject-publishing = { id = "org.incendo.cloud-build-logic.
 [libraries]
 jarRelocator = "me.lucko:jar-relocator:1.7"
 slf4j-api = "org.slf4j:slf4j-api:2.0.17"
-log4j-api = "org.apache.logging.log4j:log4j-api:2.25.2"
+log4j-api = "org.apache.logging.log4j:log4j-api:2.25.3"
 jspecifyAnnotations = "org.jspecify:jspecify:1.0.0"
 paperApi = "io.papermc.paper:paper-api:1.20.2-R0.1-SNAPSHOT"
 velocityApi = "com.velocitypowered:velocity-api:3.2.0-SNAPSHOT"
