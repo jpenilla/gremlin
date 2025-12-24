@@ -11,7 +11,7 @@ log4j-api = "org.apache.logging.log4j:log4j-api:2.25.2"
 jspecifyAnnotations = "org.jspecify:jspecify:1.0.0"
 paperApi = "io.papermc.paper:paper-api:1.20.2-R0.1-SNAPSHOT"
 velocityApi = "com.velocitypowered:velocity-api:3.2.0-SNAPSHOT"
-fabricLoader = "net.fabricmc:fabric-loader:0.16.14"
+fabricLoader = "net.fabricmc:fabric-loader:0.18.4"
 asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
 shadow = "com.gradleup.shadow:com.gradleup.shadow.gradle.plugin:9.0.2"
